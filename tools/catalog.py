@@ -15,7 +15,7 @@ MAKES = {
  "DS": ["DS 3", "DS 4", "DS 7", "DS 9"],
  "Fiat": ["500", "500X", "500L", "Panda", "Punto", "Tipo", "Doblò", "Ducato", "Bravo", "600"],
  "Ford": ["Fiesta", "Focus", "Mondeo", "Puma", "Kuga", "EcoSport", "C-Max", "S-Max", "Galaxy", "Mustang Mach-E", "Ranger", "Transit", "Transit Custom", "Ka"],
- "Honda": ["Jazz", "Civic", "HR-V", "CR-V", "ZR-V", "e"],
+ "Honda": ["Jazz", "Civic", "Civic Tourer", "Accord", "FR-V", "Stream", "Insight", "CR-Z", "HR-V", "CR-V", "ZR-V", "Legend", "e"],
  "Hyundai": ["i10", "i20", "i30", "i40", "Bayon", "Kona", "Tucson", "Santa Fe", "Ioniq", "Ioniq 5", "Ioniq 6", "ix35"],
  "Jaguar": ["XE", "XF", "E-Pace", "F-Pace", "I-Pace"],
  "Jeep": ["Renegade", "Compass", "Avenger", "Cherokee", "Wrangler", "Grand Cherokee"],
