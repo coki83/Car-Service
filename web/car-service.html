@@ -1,0 +1,570 @@
+<title>Car Service</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: one working column like an instrument cluster: odometer on top, then the service list, settings and history below. */
+:root {
+  --bg: #eef1f4;
+  --surface: #ffffff;
+  --surface-2: #f5f7f9;
+  --fg: #16202a;
+  --muted: #5b6875;
+  --line: #d6dce2;
+  --accent: #1f5fa8;
+  --accent-fg: #ffffff;
+  --ok: #2e7d32;
+  --soon: #b7791f;
+  --over: #c0392b;
+  --odo-bg: #10161d;
+  --odo-fg: #f2f4f6;
+  --font-display: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-num: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1318; --surface: #161d24; --surface-2: #1c252e; --fg: #e6ebf0; --muted: #94a2b0;
+    --line: #2a3540; --accent: #6aa7ec; --accent-fg: #0b1520; --ok: #5cb860; --soon: #e0a73c; --over: #ef6b5b;
+    --odo-bg: #05080b; --odo-fg: #f2f4f6; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1318; --surface: #161d24; --surface-2: #1c252e; --fg: #e6ebf0; --muted: #94a2b0;
+  --line: #2a3540; --accent: #6aa7ec; --accent-fg: #0b1520; --ok: #5cb860; --soon: #e0a73c; --over: #ef6b5b;
+  --odo-bg: #05080b; --odo-fg: #f2f4f6; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px 48px;
+}
+.wrap { max-width: 880px; margin: 0 auto; display: grid; gap: 20px; }
+h1, h2 { font-family: var(--font-display); font-weight: 700; margin: 0; text-wrap: balance; letter-spacing: 0.01em; }
+h1 { font-size: 1.9rem; }
+h2 { font-size: 1.3rem; }
+.label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+.muted { color: var(--muted); }
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+
+header { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; justify-content: space-between; }
+header .sub { color: var(--muted); font-size: 0.9rem; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px; }
+
+/* Odometer */
+.odo-row { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; justify-content: space-between; }
+.odo { display: inline-flex; gap: 3px; background: var(--odo-bg); padding: 8px 10px; border-radius: 6px; }
+.odo span { font-family: var(--font-num); font-weight: 700; font-size: clamp(1.6rem, 6vw, 2.4rem); color: var(--odo-fg);
+  width: 1.05em; text-align: center; background: linear-gradient(#ffffff14, #00000000 45%, #ffffff0d); border-radius: 3px; line-height: 1.35; }
+.odo .unit { width: auto; font-size: 1rem; align-self: end; padding: 0 4px 6px; background: none; color: #9aa7b4; }
+.odo-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; }
+.odo-meta { font-size: 0.85rem; color: var(--muted); margin-top: 6px; }
+
+/* Controls */
+button, .btn { font: inherit; font-weight: 600; border-radius: 7px; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg);
+  padding: 8px 14px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+button.danger { color: var(--over); }
+button.link { background: none; border: none; padding: 4px 6px; color: var(--accent); }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+input, select { font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; min-width: 0; }
+input.num { width: 9.5em; }
+.field { display: grid; gap: 4px; }
+.field > span { font-size: 0.8rem; color: var(--muted); font-weight: 500; }
+
+/* Summary */
+.summary { display: flex; flex-wrap: wrap; gap: 10px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 0.85rem; font-weight: 600; border: 1px solid var(--line); background: var(--surface-2); }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; flex: none; }
+.s-ok { color: var(--ok); } .s-soon { color: var(--soon); } .s-over { color: var(--over); }
+
+/* Service list */
+.list-head { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.items { display: grid; gap: 10px; }
+.item { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); border-left: 4px solid var(--status, var(--line)); }
+.item > * { min-width: 0; }
+.item .name { font-weight: 600; font-size: 1.02rem; }
+.item .due { font-size: 0.92rem; }
+.item .meta { font-size: 0.8rem; color: var(--muted); }
+.item .status { font-family: var(--font-display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.85rem; color: var(--status); text-align: right; }
+.item .actions { display: flex; gap: 4px; justify-content: flex-end; flex-wrap: wrap; }
+.bar { grid-column: 1 / -1; height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; border: 1px solid var(--line); }
+.bar i { display: block; height: 100%; background: var(--status); }
+
+/* Car screen preview */
+.car { background: #0b0f13; color: #e9edf1; border-radius: 12px; padding: 14px; font-family: var(--font-body); }
+.car .bar-top { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 4px 6px 12px; font-size: 1.05rem; font-weight: 600; flex-wrap: wrap; }
+.car .pill { background: #2a3440; border-radius: 999px; padding: 6px 14px; font-size: 0.9rem; }
+.car .row { padding: 10px 8px; border-top: 1px solid #222b34; }
+.car .row b { display: block; font-weight: 600; }
+.car .row small { color: #aab6c2; font-size: 0.85rem; }
+.car .c-ok { color: #66bb6a; } .car .c-soon { color: #fdd835; } .car .c-over { color: #ef5350; }
+
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 720px) { .two { grid-template-columns: 1fr; } }
+.settings { display: grid; gap: 12px; }
+.hist { list-style: none; margin: 0; padding: 0; display: grid; }
+.hist li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 0.9rem; flex-wrap: wrap; }
+.hist li:first-child { border-top: none; }
+
+.welcome { border-color: var(--accent); }
+.car-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; align-items: end; }
+.car-form input, .car-form select, .settings select { width: 100%; }
+.fuel-tag { display: inline-block; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); margin-left: 8px; vertical-align: middle; }
+.note { font-size: 0.82rem; color: var(--muted); }
+.save-state { font-size: 0.8rem; color: var(--muted); }
+
+dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--fg); padding: 20px; width: min(440px, calc(100vw - 32px)); }
+dialog::backdrop { background: #0008; }
+dialog form { display: grid; gap: 12px; }
+dialog .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+dialog .btns { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+dialog .btns .left { margin-right: auto; }
+@media (prefers-reduced-motion: no-preference) { .bar i { transition: width .4s ease; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <div class="label">Car Service</div>
+      <h1><span id="carName">My car</span><span class="fuel-tag" id="fuelTag"></span></h1>
+    </div>
+    <div class="sub" id="saveState">Saved on this device</div>
+  </header>
+
+  <section class="panel welcome" id="welcome" hidden>
+    <h2>Your car</h2>
+    <p class="muted" style="margin:6px 0 12px">Pick your car and fuel type to load the right service list, then enter the odometer from your dashboard. Items start counting from today; use <b>Done</b> on each to set when it was really last done.</p>
+    <form id="welcomeForm" class="car-form">
+      <label class="field"><span>Make</span><input id="wMake" list="makesList" placeholder="Start typing, e.g. Volkswagen" autocomplete="off" required></label>
+      <label class="field"><span>Model</span><input id="wModel" list="wModelsList" placeholder="e.g. Golf" autocomplete="off"></label>
+      <label class="field"><span>Fuel</span><select id="wFuel"></select></label>
+      <label class="field"><span>Odometer (km)</span><input id="welcomeKm" class="num" inputmode="numeric" placeholder="e.g. 84 250" required style="width:100%"></label>
+      <button class="primary" type="submit">Start</button>
+    </form>
+    <datalist id="wModelsList"></datalist>
+    <datalist id="makesList"></datalist>
+  </section>
+
+  <section class="panel">
+    <div class="odo-row">
+      <div>
+        <div class="label">Odometer</div>
+        <div class="odo" id="odo" aria-live="polite"></div>
+        <div class="odo-meta" id="odoMeta"></div>
+      </div>
+      <form id="odoForm" class="odo-form">
+        <label class="field"><span>Update reading (km)</span><input id="odoInput" class="num" inputmode="numeric"></label>
+        <button type="submit" class="primary">Update</button>
+      </form>
+    </div>
+    <p class="note" style="margin:14px 0 0">On the phone the app reads kilometres from your OBD-II adapter or GPS. On Windows there is no car connection, so type the reading from your dashboard.</p>
+  </section>
+
+  <section>
+    <div class="list-head">
+      <div style="display:grid;gap:8px">
+        <h2>Next services</h2>
+        <div class="summary" id="summary"></div>
+      </div>
+      <button class="primary" id="addBtn" type="button">Add service item</button>
+    </div>
+    <div class="items" id="items"></div>
+  </section>
+
+  <div class="two">
+    <section class="panel">
+      <h2 style="margin-bottom:10px">Android Auto preview</h2>
+      <div class="car" id="car"></div>
+      <p class="note" style="margin:10px 0 0">How the car screen shows the most urgent items.</p>
+    </section>
+    <section class="panel settings">
+      <h2>Settings</h2>
+      <form id="carForm" class="settings" style="gap:10px">
+        <div class="row2" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <label class="field"><span>Make</span><input id="sMake" list="makesList" autocomplete="off"></label>
+          <label class="field"><span>Model</span><input id="sModel" list="sModelsList" autocomplete="off"></label>
+        </div>
+        <datalist id="sModelsList"></datalist>
+        <label class="field"><span>Fuel</span><select id="sFuel"></select></label>
+        <p class="note" id="fuelNote" hidden style="margin:0">Saving switches the service list to items for this fuel. Items you added yourself and past service dates are kept.</p>
+        <div><button type="submit" id="carSave">Save car</button></div>
+      </form>
+      <label class="field"><span>Name shown in the app</span><input id="setName"></label>
+      <div class="row2" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <label class="field"><span>Warn km before due</span><input id="setWarnKm" class="num" inputmode="numeric" style="width:100%"></label>
+        <label class="field"><span>Warn days before due</span><input id="setWarnDays" class="num" inputmode="numeric" style="width:100%"></label>
+      </div>
+      <p class="note" id="storageNote" style="margin:0"></p>
+    </section>
+  </div>
+
+  <section class="panel">
+    <h2 style="margin-bottom:8px">Service history</h2>
+    <ul class="hist" id="hist"></ul>
+  </section>
+</div>
+
+<dialog id="editDlg">
+  <form id="editForm" method="dialog">
+    <h2 id="editTitle">Service item</h2>
+    <label class="field"><span>Name</span><input id="eName" required></label>
+    <div class="row2">
+      <label class="field"><span>Every … km (blank = time only)</span><input id="eKm" inputmode="numeric"></label>
+      <label class="field"><span>Every … months (blank = km only)</span><input id="eMonths" inputmode="numeric"></label>
+    </div>
+    <div class="row2">
+      <label class="field"><span>Last done at km</span><input id="eLastKm" inputmode="numeric" required></label>
+      <label class="field"><span>Last done on</span><input id="eLastDate" type="date" required></label>
+    </div>
+    <p class="note" id="eError" hidden style="color:var(--over);margin:0">Set a km interval, a months interval, or both.</p>
+    <div class="btns">
+      <button type="button" class="danger left" id="eDelete">Delete</button>
+      <button type="button" id="eCancel">Cancel</button>
+      <button type="submit" class="primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="doneDlg">
+  <form id="doneForm" method="dialog">
+    <h2 id="doneTitle">Mark as done</h2>
+    <div class="row2">
+      <label class="field"><span>At km</span><input id="dKm" inputmode="numeric" required></label>
+      <label class="field"><span>On</span><input id="dDate" type="date" required></label>
+    </div>
+    <label class="field"><span>Note (optional)</span><input id="dNote" placeholder="e.g. 5W-30, workshop name"></label>
+    <div class="btns">
+      <button type="button" id="dCancel">Cancel</button>
+      <button type="submit" class="primary">Mark done</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  let carDirty = false;
+  const todayISO = () => new Date().toISOString().slice(0, 10);
+  const uid = () => Math.random().toString(36).slice(2, 10);
+
+  const CATALOG = {"makes": {"Alfa Romeo": ["Giulia", "Giulietta", "Stelvio", "Tonale", "MiTo", "159", "147", "Junior"], "Audi": ["A1", "A3", "A4", "A5", "A6", "A7", "A8", "Q2", "Q3", "Q5", "Q7", "Q8", "Q4 e-tron", "e-tron", "TT"], "BMW": ["1 Series", "2 Series", "3 Series", "4 Series", "5 Series", "7 Series", "X1", "X2", "X3", "X4", "X5", "X6", "i3", "i4", "iX", "iX3"], "BYD": ["Atto 3", "Dolphin", "Seal", "Seal U", "Han", "Tang"], "Chevrolet": ["Aveo", "Cruze", "Spark", "Captiva", "Orlando"], "Citroën": ["C1", "C3", "C3 Aircross", "C4", "C4 Picasso", "C5", "C5 Aircross", "Berlingo", "Jumpy", "Jumper", "ë-C4"], "Cupra": ["Born", "Formentor", "Leon", "Ateca", "Tavascan"], "Dacia": ["Sandero", "Logan", "Duster", "Jogger", "Spring", "Lodgy", "Dokker"], "DS": ["DS 3", "DS 4", "DS 7", "DS 9"], "Fiat": ["500", "500X", "500L", "Panda", "Punto", "Tipo", "Doblò", "Ducato", "Bravo", "600"], "Ford": ["Fiesta", "Focus", "Mondeo", "Puma", "Kuga", "EcoSport", "C-Max", "S-Max", "Galaxy", "Mustang Mach-E", "Ranger", "Transit", "Transit Custom", "Ka"], "Honda": ["Jazz", "Civic", "HR-V", "CR-V", "ZR-V", "e"], "Hyundai": ["i10", "i20", "i30", "i40", "Bayon", "Kona", "Tucson", "Santa Fe", "Ioniq", "Ioniq 5", "Ioniq 6", "ix35"], "Jaguar": ["XE", "XF", "E-Pace", "F-Pace", "I-Pace"], "Jeep": ["Renegade", "Compass", "Avenger", "Cherokee", "Wrangler", "Grand Cherokee"], "Kia": ["Picanto", "Rio", "Ceed", "XCeed", "Stonic", "Niro", "Sportage", "Sorento", "EV6", "EV9", "Soul", "Optima"], "Land Rover": ["Defender", "Discovery", "Discovery Sport", "Range Rover", "Range Rover Evoque", "Range Rover Sport", "Range Rover Velar", "Freelander"], "Lexus": ["CT", "IS", "ES", "NX", "RX", "UX", "LBX"], "Mazda": ["2", "3", "6", "CX-3", "CX-30", "CX-5", "CX-60", "MX-5", "MX-30"], "Mercedes-Benz": ["A-Class", "B-Class", "C-Class", "E-Class", "S-Class", "CLA", "GLA", "GLB", "GLC", "GLE", "EQA", "EQB", "EQC", "EQE", "Vito", "Sprinter"], "MG": ["MG3", "MG4", "MG5", "ZS", "HS", "Marvel R"], "Mini": ["Hatch", "Clubman", "Countryman", "Cabrio", "Electric"], "Mitsubishi": ["Space Star", "Colt", "ASX", "Eclipse Cross", "Outlander", "L200"], "Nissan": ["Micra", "Juke", "Qashqai", "X-Trail", "Leaf", "Ariya", "Note", "Navara"], "Opel / Vauxhall": ["Corsa", "Astra", "Insignia", "Mokka", "Crossland", "Grandland", "Zafira", "Meriva", "Combo", "Vivaro", "Adam", "Karl"], "Peugeot": ["108", "208", "2008", "308", "3008", "408", "508", "5008", "Partner", "Rifter", "Expert", "Boxer", "e-208"], "Polestar": ["2", "3", "4"], "Porsche": ["911", "Cayenne", "Macan", "Panamera", "Taycan"], "Renault": ["Twingo", "Clio", "Captur", "Mégane", "Scénic", "Arkana", "Austral", "Kadjar", "Koleos", "Talisman", "Laguna", "Zoe", "Kangoo", "Trafic", "Master", "Espace"], "Seat": ["Ibiza", "Leon", "Arona", "Ateca", "Tarraco", "Alhambra", "Toledo", "Mii"], "Škoda": ["Citigo", "Fabia", "Scala", "Rapid", "Octavia", "Superb", "Kamiq", "Karoq", "Kodiaq", "Enyaq", "Yeti", "Roomster"], "Smart": ["ForTwo", "ForFour", "#1", "#3"], "SsangYong / KGM": ["Tivoli", "Korando", "Rexton", "Torres"], "Subaru": ["Impreza", "XV / Crosstrek", "Forester", "Outback", "Legacy", "Solterra"], "Suzuki": ["Swift", "Ignis", "Baleno", "Vitara", "S-Cross", "Jimny", "Celerio", "SX4", "Grand Vitara"], "Tesla": ["Model 3", "Model Y", "Model S", "Model X"], "Toyota": ["Aygo", "Aygo X", "Yaris", "Yaris Cross", "Corolla", "Auris", "Avensis", "C-HR", "RAV4", "Prius", "Land Cruiser", "Hilux", "Proace", "bZ4X"], "Volkswagen": ["up!", "Polo", "Golf", "Jetta", "Passat", "Arteon", "T-Cross", "T-Roc", "Taigo", "Tiguan", "Touran", "Touareg", "Sharan", "Caddy", "Transporter", "ID.3", "ID.4", "ID.5", "ID.7", "ID. Buzz"], "Volvo": ["V40", "V60", "V90", "S60", "S90", "XC40", "XC60", "XC90", "EX30", "EX90"]}, "fuels": [["PETROL", "Petrol"], ["DIESEL", "Diesel"], ["HYBRID", "Hybrid (petrol)"], ["PLUGIN_HYBRID", "Plug-in hybrid"], ["ELECTRIC", "Electric"], ["LPG", "Petrol + LPG"]], "templates": {"PETROL": [{"id": "oil", "name": "Engine oil & filter", "km": 15000, "months": 12}, {"id": "air", "name": "Air filter", "km": 30000, "months": 24}, {"id": "cabin", "name": "Cabin (pollen) filter", "km": 15000, "months": 12}, {"id": "plugs", "name": "Spark plugs", "km": 60000, "months": 48}, {"id": "timing", "name": "Timing belt / chain check", "km": 120000, "months": 72}, {"id": "brakes", "name": "Brake pads & discs check", "km": 20000, "months": 12}, {"id": "brakefluid", "name": "Brake fluid", "km": null, "months": 24}, {"id": "coolant", "name": "Coolant", "km": null, "months": 60}, {"id": "inspection", "name": "Technical inspection", "km": null, "months": 12}], "DIESEL": [{"id": "oil", "name": "Engine oil & filter", "km": 15000, "months": 12}, {"id": "fuelfilter", "name": "Diesel fuel filter", "km": 30000, "months": 24}, {"id": "air", "name": "Air filter", "km": 30000, "months": 24}, {"id": "cabin", "name": "Cabin (pollen) filter", "km": 15000, "months": 12}, {"id": "glowplugs", "name": "Glow plugs", "km": 100000, "months": null}, {"id": "dpf", "name": "DPF (particle filter) check", "km": 100000, "months": null}, {"id": "adblue", "name": "AdBlue top-up (if fitted)", "km": 10000, "months": null}, {"id": "timing", "name": "Timing belt / chain check", "km": 120000, "months": 72}, {"id": "brakes", "name": "Brake pads & discs check", "km": 20000, "months": 12}, {"id": "brakefluid", "name": "Brake fluid", "km": null, "months": 24}, {"id": "coolant", "name": "Coolant", "km": null, "months": 60}, {"id": "inspection", "name": "Technical inspection", "km": null, "months": 12}], "HYBRID": [{"id": "oil", "name": "Engine oil & filter", "km": 15000, "months": 12}, {"id": "air", "name": "Air filter", "km": 30000, "months": 24}, {"id": "cabin", "name": "Cabin (pollen) filter", "km": 15000, "months": 12}, {"id": "plugs", "name": "Spark plugs", "km": 60000, "months": 48}, {"id": "hybridcheck", "name": "Hybrid system check", "km": null, "months": 12}, {"id": "brakes", "name": "Brake pads & discs check", "km": 20000, "months": 12}, {"id": "brakefluid", "name": "Brake fluid", "km": null, "months": 24}, {"id": "coolant", "name": "Coolant", "km": null, "months": 60}, {"id": "inspection", "name": "Technical inspection", "km": null, "months": 12}], "PLUGIN_HYBRID": [{"id": "oil", "name": "Engine oil & filter", "km": 15000, "months": 12}, {"id": "air", "name": "Air filter", "km": 30000, "months": 24}, {"id": "cabin", "name": "Cabin (pollen) filter", "km": 15000, "months": 12}, {"id": "plugs", "name": "Spark plugs", "km": 60000, "months": 48}, {"id": "hybridcheck", "name": "Hybrid battery & charging check", "km": null, "months": 12}, {"id": "brakes", "name": "Brake pads & discs check", "km": 20000, "months": 12}, {"id": "brakefluid", "name": "Brake fluid", "km": null, "months": 24}, {"id": "coolant", "name": "Coolant", "km": null, "months": 60}, {"id": "inspection", "name": "Technical inspection", "km": null, "months": 12}], "ELECTRIC": [{"id": "cabin", "name": "Cabin (pollen) filter", "km": 15000, "months": 12}, {"id": "tyres", "name": "Tyre rotation", "km": 10000, "months": 12}, {"id": "brakes", "name": "Brake pads & discs check", "km": 20000, "months": 12}, {"id": "brakefluid", "name": "Brake fluid", "km": null, "months": 24}, {"id": "evcoolant", "name": "Battery coolant", "km": null, "months": 48}, {"id": "battery12v", "name": "12 V battery check", "km": null, "months": 12}, {"id": "evcheck", "name": "High-voltage system check", "km": null, "months": 24}, {"id": "inspection", "name": "Technical inspection", "km": null, "months": 12}], "LPG": [{"id": "oil", "name": "Engine oil & filter", "km": 15000, "months": 12}, {"id": "air", "name": "Air filter", "km": 30000, "months": 24}, {"id": "cabin", "name": "Cabin (pollen) filter", "km": 15000, "months": 12}, {"id": "plugs", "name": "Spark plugs", "km": 60000, "months": 48}, {"id": "lpgfilter", "name": "LPG filters", "km": 15000, "months": 12}, {"id": "lpgcheck", "name": "LPG system inspection", "km": null, "months": 12}, {"id": "timing", "name": "Timing belt / chain check", "km": 120000, "months": 72}, {"id": "brakes", "name": "Brake pads & discs check", "km": 20000, "months": 12}, {"id": "brakefluid", "name": "Brake fluid", "km": null, "months": 24}, {"id": "coolant", "name": "Coolant", "km": null, "months": 60}, {"id": "inspection", "name": "Technical inspection", "km": null, "months": 12}]}};
+
+  const templateIds = new Set(Object.values(CATALOG.templates).flat().map((t) => t.id));
+  const fuelLabel = (f) => (CATALOG.fuels.find(([k]) => k === f) || [f, f])[1];
+  const fromTemplate = (fuel, km, date) => CATALOG.templates[fuel].map((t) =>
+    ({ id: t.id, name: t.name, intervalKm: t.km, intervalMonths: t.months, lastDoneKm: km, lastDoneDate: date }));
+  function retemplate(items, fuel, km, date) {
+    const old = Object.fromEntries(items.map((i) => [i.id, i]));
+    const fresh = CATALOG.templates[fuel].map((t) => old[t.id]
+      ? { ...old[t.id], name: t.name, intervalKm: t.km, intervalMonths: t.months }
+      : { id: t.id, name: t.name, intervalKm: t.km, intervalMonths: t.months, lastDoneKm: km, lastDoneDate: date });
+    return fresh.concat(items.filter((i) => !templateIds.has(i.id)));
+  }
+
+  // Same defaults as the Android app.
+  function defaultState() {
+    return {
+      vehicle: { name: "My car", make: "", model: "", fuel: "PETROL", odometerKm: 0, odometerUpdated: 0 },
+      items: fromTemplate("PETROL", 0, todayISO()),
+      history: [],
+      settings: { warnKm: 1000, warnDays: 30 },
+    };
+  }
+  let state = defaultState();
+
+  // ---------- due calculation (mirrors DueCalculator.kt) ----------
+  const parseDate = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d)); };
+  const addMonths = (dt, n) => {
+    const d = new Date(dt); const day = d.getUTCDate();
+    d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() + n);
+    const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+    d.setUTCDate(Math.min(day, last)); return d;
+  };
+  const daysBetween = (a, b) => Math.round((b - a) / 86400000);
+  const fmtKm = (n) => Math.round(n).toLocaleString("en-US").replace(/,/g, " ");
+  const fmtDate = (d) => `${String(d.getUTCDate()).padStart(2, "0")}.${String(d.getUTCMonth() + 1).padStart(2, "0")}.${d.getUTCFullYear()}`;
+  const fmtDays = (n) => n >= 60 ? `${Math.floor(n / 30)} months` : n === 1 ? "1 day" : `${n} days`;
+
+  function compute(item) {
+    const km = Math.floor(state.vehicle.odometerKm);
+    const today = parseDate(todayISO());
+    const last = parseDate(item.lastDoneDate);
+    const dueKm = item.intervalKm ? item.lastDoneKm + item.intervalKm : null;
+    const dueDate = item.intervalMonths ? addMonths(last, item.intervalMonths) : null;
+    const kmLeft = dueKm != null ? dueKm - km : null;
+    const daysLeft = dueDate ? daysBetween(today, dueDate) : null;
+    const { warnKm, warnDays } = state.settings;
+    const overdue = (kmLeft != null && kmLeft <= 0) || (daysLeft != null && daysLeft <= 0);
+    const soon = (kmLeft != null && kmLeft <= warnKm) || (daysLeft != null && daysLeft <= warnDays);
+    const status = overdue ? "over" : soon ? "soon" : "ok";
+    const p = [];
+    if (item.intervalKm) p.push((km - item.lastDoneKm) / item.intervalKm);
+    if (dueDate) p.push(daysBetween(last, today) / Math.max(1, daysBetween(last, dueDate)));
+    const progress = p.length ? Math.max(0, Math.max(...p)) : 0;
+    return { item, dueKm, dueDate, kmLeft, daysLeft, status, progress };
+  }
+  function describe(d) {
+    if (d.kmLeft == null && d.daysLeft == null) return "No interval set";
+    if (d.status === "over") {
+      const o = [];
+      if (d.kmLeft != null && d.kmLeft <= 0) o.push(`${fmtKm(-d.kmLeft)} km`);
+      if (d.daysLeft != null && d.daysLeft <= 0) o.push(fmtDays(-d.daysLeft));
+      return "Overdue by " + o.join(" and ");
+    }
+    const parts = [];
+    if (d.kmLeft != null) parts.push(`${fmtKm(d.kmLeft)} km`);
+    if (d.daysLeft != null) parts.push(fmtDays(d.daysLeft));
+    return "Due in " + parts.join(" or ");
+  }
+  const allDue = () => state.items.map(compute).sort((a, b) => b.progress - a.progress);
+  const statusLabel = { ok: "OK", soon: "Soon", over: "Overdue" };
+
+  // ---------- render ----------
+  function el(tag, attrs = {}, ...kids) {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k === "class") e.className = v; else if (k === "style") e.style.cssText = v;
+      else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v);
+    }
+    for (const k of kids) if (k != null) e.append(k);
+    return e;
+  }
+
+  function render() {
+    $("carName").textContent = state.vehicle.name;
+    $("fuelTag").textContent = fuelLabel(state.vehicle.fuel);
+    for (const [id, v] of [["sMake", state.vehicle.make], ["sModel", state.vehicle.model], ["sFuel", state.vehicle.fuel]]) {
+      if (document.activeElement !== $(id) && !carDirty) $(id).value = v;
+    }
+    $("welcome").hidden = state.vehicle.odometerUpdated !== 0;
+
+    const digits = String(Math.floor(state.vehicle.odometerKm)).padStart(6, "0");
+    $("odo").replaceChildren(...[...digits].map((c) => el("span", {}, c)), el("span", { class: "unit" }, "km"));
+    $("odoMeta").textContent = state.vehicle.odometerUpdated
+      ? "Updated " + new Date(state.vehicle.odometerUpdated).toLocaleString()
+      : "Not set yet";
+    if (document.activeElement !== $("odoInput")) $("odoInput").value = Math.floor(state.vehicle.odometerKm) || "";
+
+    const due = allDue();
+    const counts = { over: 0, soon: 0, ok: 0 };
+    due.forEach((d) => counts[d.status]++);
+    $("summary").replaceChildren(
+      ...["over", "soon", "ok"].filter((s) => counts[s]).map((s) =>
+        el("span", { class: `chip s-${s}` }, el("span", { class: "dot" }), `${counts[s]} ${statusLabel[s].toLowerCase()}`))
+    );
+
+    const statusVar = { ok: "var(--ok)", soon: "var(--soon)", over: "var(--over)" };
+    $("items").replaceChildren(...(due.length ? due.map((d) => {
+      const at = [d.dueKm != null ? `${fmtKm(d.dueKm)} km` : null, d.dueDate ? fmtDate(d.dueDate) : null].filter(Boolean).join(" / ");
+      const every = [d.item.intervalKm ? `${fmtKm(d.item.intervalKm)} km` : null, d.item.intervalMonths ? `${d.item.intervalMonths} months` : null].filter(Boolean).join(" or ");
+      return el("article", { class: "item", style: `--status:${statusVar[d.status]}` },
+        el("div", {},
+          el("div", { class: "name" }, d.item.name),
+          el("div", { class: "due" }, describe(d)),
+          el("div", { class: "meta" }, `Every ${every}${at ? " · due at " + at : ""} · last ${fmtKm(d.item.lastDoneKm)} km on ${fmtDate(parseDate(d.item.lastDoneDate))}`)),
+        el("div", { style: "display:grid;gap:6px;align-content:start" },
+          el("div", { class: "status" }, statusLabel[d.status]),
+          el("div", { class: "actions" },
+            el("button", { type: "button", class: "link", onclick: () => openDone(d.item) }, "Done"),
+            el("button", { type: "button", class: "link", onclick: () => openEdit(d.item) }, "Edit"))),
+        el("div", { class: "bar", "aria-hidden": "true" }, el("i", { style: `width:${Math.min(100, d.progress * 100).toFixed(1)}%` })));
+    }) : [el("p", { class: "muted" }, "No service items. Add one to start tracking.")]));
+
+    // Android Auto preview: same content as DueScreen.kt
+    const carRows = due.slice(0, 6).map((d) =>
+      el("div", { class: "row" }, el("b", {}, d.item.name),
+        el("small", {}, el("span", { class: `c-${d.status}` }, statusLabel[d.status]), " · " + describe(d))));
+    $("car").replaceChildren(
+      el("div", { class: "bar-top" }, el("span", { class: "num" }, `${fmtKm(state.vehicle.odometerKm)} km · ${state.vehicle.name}`), el("span", { class: "pill" }, "Start trip")),
+      ...(carRows.length ? carRows : [el("div", { class: "row" }, el("small", {}, "No service items. Add them in the phone app."))]));
+
+    for (const [id, v] of [["setName", state.vehicle.name], ["setWarnKm", state.settings.warnKm], ["setWarnDays", state.settings.warnDays]]) {
+      if (document.activeElement !== $(id)) $(id).value = v;
+    }
+
+    $("hist").replaceChildren(...(state.history.length ? state.history.map((r) =>
+      el("li", {}, el("span", {}, el("b", {}, r.itemName), r.note ? el("span", { class: "muted" }, " · " + r.note) : null),
+        el("span", { class: "num muted" }, `${fmtKm(r.km)} km · ${fmtDate(parseDate(r.date))}`)))
+      : [el("li", { class: "muted" }, "Nothing recorded yet. Marking an item as done adds it here.")]));
+  }
+
+  // ---------- storage: account-private db when available, else this browser ----------
+  let doc = null, saving = false, pending = false, saveTimer = null;
+  const LS_KEY = "car-service-state";
+  const setSaveState = (t) => { $("saveState").textContent = t; };
+
+  function loadLocal() {
+    try { const s = localStorage.getItem(LS_KEY); if (s) return JSON.parse(s); } catch (e) {}
+    return null;
+  }
+  function saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {} }
+
+  function scheduleSave() {
+    saveLocal();
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(flush, 500);
+  }
+  async function flush() {
+    if (!doc) { setSaveState("Saved in this browser"); return; }
+    if (saving) { pending = true; return; }
+    saving = true; setSaveState("Saving…");
+    try { await doc.set({ state: JSON.stringify(state) }); setSaveState("Saved to your account"); }
+    catch (e) { setSaveState("Could not save to your account. Kept in this browser."); }
+    saving = false;
+    if (pending) { pending = false; flush(); }
+  }
+  function commit(fn) { fn(); render(); scheduleSave(); }
+
+  function normalize(s) {
+    const d = defaultState();
+    if (!s || typeof s !== "object") return d;
+    return {
+      vehicle: { ...d.vehicle, ...(s.vehicle || {}) },
+      items: Array.isArray(s.items) ? s.items : d.items,
+      history: Array.isArray(s.history) ? s.history : [],
+      settings: { ...d.settings, ...(s.settings || {}) },
+    };
+  }
+
+  const local = loadLocal();
+  if (local) state = normalize(local);
+  $("storageNote").textContent = "Stored in this browser only.";
+  render();
+
+  (async () => {
+    if (!window.claude?.use) return;
+    try {
+      const [db, user] = await Promise.all([window.claude.use("db"), window.claude.use("user")]);
+      if (!db || !user) return;
+      const id = await user.id();
+      if (!id) return;
+      doc = db.collection("data/users/" + id).doc("car-service");
+      const timer = setTimeout(() => setSaveState("Saved in this browser"), 10000);
+      const snap = await doc.get();
+      clearTimeout(timer);
+      if (snap.exists && snap.data()?.state) {
+        try { state = normalize(JSON.parse(snap.data().state)); saveLocal(); render(); } catch (e) {}
+      } else if (local) {
+        flush(); // first time on this account: keep what this browser had
+      }
+      $("storageNote").textContent = "Saved privately to your Claude account, so it is the same on any computer you sign in on.";
+      setSaveState("Saved to your account");
+    } catch (e) { doc = null; }
+  })();
+
+  // ---------- interactions ----------
+  const digitsOnly = (v) => String(v).replace(/\D/g, "");
+
+  // ---------- car picker ----------
+  $("makesList").replaceChildren(...Object.keys(CATALOG.makes).map((m) => el("option", { value: m })));
+  for (const sel of [$("wFuel"), $("sFuel")]) sel.replaceChildren(...CATALOG.fuels.map(([k, l]) => el("option", { value: k }, l)));
+  const fillModels = (makeInput, listId) => {
+    const models = CATALOG.makes[makeInput.value.trim()] || [];
+    $(listId).replaceChildren(...models.map((m) => el("option", { value: m })));
+  };
+  $("wMake").addEventListener("input", () => fillModels($("wMake"), "wModelsList"));
+  $("sMake").addEventListener("input", () => { fillModels($("sMake"), "sModelsList"); carDirty = true; });
+  $("sModel").addEventListener("input", () => { carDirty = true; });
+  $("sFuel").addEventListener("change", () => { carDirty = true; $("fuelNote").hidden = $("sFuel").value === state.vehicle.fuel; });
+  const carName = (make, model) => [make, model].filter(Boolean).join(" ") || "My car";
+
+  $("welcomeForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const km = parseInt(digitsOnly($("welcomeKm").value), 10);
+    if (isNaN(km)) return;
+    const make = $("wMake").value.trim(), model = $("wModel").value.trim(), fuel = $("wFuel").value;
+    commit(() => {
+      Object.assign(state.vehicle, { make, model, fuel, name: carName(make, model), odometerKm: km, odometerUpdated: Date.now() });
+      state.items = fromTemplate(fuel, km, todayISO());
+    });
+  });
+
+  $("carForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const make = $("sMake").value.trim(), model = $("sModel").value.trim(), fuel = $("sFuel").value;
+    commit(() => {
+      if (fuel !== state.vehicle.fuel) state.items = retemplate(state.items, fuel, Math.floor(state.vehicle.odometerKm), todayISO());
+      Object.assign(state.vehicle, { make, model, fuel, name: carName(make, model) });
+    });
+    carDirty = false; $("fuelNote").hidden = true;
+    $("carSave").textContent = "Saved"; setTimeout(() => { $("carSave").textContent = "Save car"; }, 1500);
+  });
+
+  $("odoForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const km = parseInt(digitsOnly($("odoInput").value), 10);
+    if (isNaN(km)) return;
+    commit(() => { state.vehicle.odometerKm = km; state.vehicle.odometerUpdated = Date.now(); });
+    $("odoInput").blur();
+  });
+
+  $("setName").addEventListener("change", (e) => commit(() => { state.vehicle.name = e.target.value.trim() || "My car"; }));
+  $("setWarnKm").addEventListener("change", (e) => { const v = parseInt(digitsOnly(e.target.value), 10); if (!isNaN(v)) commit(() => { state.settings.warnKm = v; }); });
+  $("setWarnDays").addEventListener("change", (e) => { const v = parseInt(digitsOnly(e.target.value), 10); if (!isNaN(v)) commit(() => { state.settings.warnDays = v; }); });
+
+  let editing = null;
+  function openEdit(item) {
+    const isNew = !item;
+    editing = item ? { ...item } : { id: uid(), name: "", intervalKm: 15000, intervalMonths: 12, lastDoneKm: Math.floor(state.vehicle.odometerKm), lastDoneDate: todayISO() };
+    $("editTitle").textContent = isNew ? "New service item" : "Edit service item";
+    $("eName").value = editing.name;
+    $("eKm").value = editing.intervalKm ?? "";
+    $("eMonths").value = editing.intervalMonths ?? "";
+    $("eLastKm").value = editing.lastDoneKm;
+    $("eLastDate").value = editing.lastDoneDate;
+    $("eDelete").hidden = isNew;
+    $("eError").hidden = true;
+    $("editDlg").showModal();
+  }
+  $("addBtn").addEventListener("click", () => openEdit(null));
+  $("eCancel").addEventListener("click", () => $("editDlg").close());
+  $("eDelete").addEventListener("click", () => {
+    if ($("eDelete").dataset.armed !== "1") { $("eDelete").dataset.armed = "1"; $("eDelete").textContent = "Tap again to delete"; return; }
+    const id = editing.id;
+    commit(() => { state.items = state.items.filter((i) => i.id !== id); });
+    $("editDlg").close();
+  });
+  $("editDlg").addEventListener("close", () => { $("eDelete").dataset.armed = ""; $("eDelete").textContent = "Delete"; });
+  $("editForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const km = parseInt(digitsOnly($("eKm").value), 10) || null;
+    const months = parseInt(digitsOnly($("eMonths").value), 10) || null;
+    if (!km && !months) { $("eError").hidden = false; return; }
+    const item = { ...editing, name: $("eName").value.trim(), intervalKm: km, intervalMonths: months,
+      lastDoneKm: parseInt(digitsOnly($("eLastKm").value), 10) || 0, lastDoneDate: $("eLastDate").value || todayISO() };
+    commit(() => {
+      const i = state.items.findIndex((x) => x.id === item.id);
+      if (i >= 0) state.items[i] = item; else state.items.push(item);
+    });
+    $("editDlg").close();
+  });
+
+  let doneItem = null;
+  function openDone(item) {
+    doneItem = item;
+    $("doneTitle").textContent = item.name + " done";
+    $("dKm").value = Math.floor(state.vehicle.odometerKm);
+    $("dDate").value = todayISO();
+    $("dNote").value = "";
+    $("doneDlg").showModal();
+  }
+  $("dCancel").addEventListener("click", () => $("doneDlg").close());
+  $("doneForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const km = parseInt(digitsOnly($("dKm").value), 10);
+    const date = $("dDate").value || todayISO();
+    if (isNaN(km)) return;
+    const it = doneItem;
+    commit(() => {
+      state.items = state.items.map((i) => i.id === it.id ? { ...i, lastDoneKm: km, lastDoneDate: date } : i);
+      state.history.unshift({ itemId: it.id, itemName: it.name, km, date, note: $("dNote").value.trim() });
+      if (km > state.vehicle.odometerKm) { state.vehicle.odometerKm = km; state.vehicle.odometerUpdated = Date.now(); }
+    });
+    $("doneDlg").close();
+  });
+})();
+</script>

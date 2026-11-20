@@ -2,7 +2,12 @@ package io.github.coki83.carservice
 
 import io.github.coki83.carservice.data.DueCalculator
 import io.github.coki83.carservice.data.DueStatus
+import io.github.coki83.carservice.data.FuelType
 import io.github.coki83.carservice.data.ServiceItem
+import io.github.coki83.carservice.data.defaultItems
+import io.github.coki83.carservice.data.retemplate
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import io.github.coki83.carservice.obd.Elm327
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -47,5 +52,21 @@ class DueCalculatorTest {
         assertEquals(0x3CL, Elm327.parse("410D3C\r", "410D", 1))
         assertEquals(1234567L, Elm327.parse("SEARCHING...\r41A60012D687", "41A6", 4))
         assertNull(Elm327.parse("NO DATA", "41A6", 4))
+    }
+
+    @Test fun dieselHasNoSparkPlugs() {
+        val ids = defaultItems(0, today, FuelType.DIESEL).map { it.id }
+        assertFalse("plugs" in ids)
+        assertTrue("glowplugs" in ids && "fuelfilter" in ids && "dpf" in ids)
+    }
+
+    @Test fun switchingFuelKeepsHistoryAndCustomItems() {
+        val petrol = defaultItems(50_000, today, FuelType.PETROL)
+            .map { if (it.id == "oil") it.copy(lastDoneKm = 48_000) else it } +
+            ServiceItem("my", "Wiper blades", null, 12, 50_000, today)
+        val diesel = retemplate(petrol, FuelType.DIESEL, 50_000, today)
+        assertEquals(48_000, diesel.first { it.id == "oil" }.lastDoneKm)
+        assertTrue(diesel.any { it.id == "my" })
+        assertFalse(diesel.any { it.id == "plugs" })
     }
 }

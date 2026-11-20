@@ -55,7 +55,7 @@ fun App() {
             Screen.SETTINGS -> SettingsScreen(state, store, onBack = { screen = Screen.HOME })
             Screen.HISTORY -> HistoryScreen(state, onBack = { screen = Screen.HOME })
         }
-        if (state.vehicle.odometerUpdated == 0L) FirstRunDialog(store)
+        if (state.vehicle.odometerUpdated == 0L) CarSetupDialog(state, store, firstRun = true, onDismiss = {})
     }
 }
 
@@ -224,37 +224,6 @@ private fun DueRow(d: DueInfo, onClick: () -> Unit) {
 // ---------------- Dialogs ----------------
 
 @Composable
-private fun FirstRunDialog(store: Store) {
-    var text by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = {},
-        title = { Text("Welcome") },
-        text = {
-            Column {
-                Text("Enter your car's current odometer. Service items start counting from today; tap each one afterwards to set when it was last done.")
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    text, { text = it.filter(Char::isDigit) }, label = { Text("Odometer (km)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true,
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(enabled = text.isNotEmpty(), onClick = {
-                val km = text.toInt()
-                val today = LocalDate.now()
-                store.update { s ->
-                    s.copy(
-                        vehicle = s.vehicle.copy(odometerKm = km.toDouble(), odometerUpdated = System.currentTimeMillis()),
-                        items = s.items.map { it.copy(lastDoneKm = km, lastDoneDate = today) },
-                    )
-                }
-            }) { Text("Save") }
-        },
-    )
-}
-
-@Composable
 private fun NumberDialog(title: String, initial: String, onDismiss: () -> Unit, onConfirm: (Int) -> Unit) {
     var text by remember { mutableStateOf(initial) }
     AlertDialog(
@@ -372,6 +341,7 @@ private fun SettingsScreen(state: AppState, store: Store, onBack: () -> Unit) {
     var warnKm by remember { mutableStateOf(state.settings.warnKm.toString()) }
     var warnDays by remember { mutableStateOf(state.settings.warnDays.toString()) }
     var pickObd by remember { mutableStateOf(false) }
+    var changeCar by remember { mutableStateOf(false) }
     val btPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) pickObd = true
     }
@@ -394,7 +364,17 @@ private fun SettingsScreen(state: AppState, store: Store, onBack: () -> Unit) {
         )
     }) { pad ->
         LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            item { OutlinedTextField(name, { name = it }, label = { Text("Car name") }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
+            item {
+                ListItem(
+                    headlineContent = { Text("Car") },
+                    supportingContent = {
+                        Text(listOf(state.vehicle.make, state.vehicle.model).filter { it.isNotEmpty() }.joinToString(" ").ifEmpty { "Not set" } +
+                            " · " + state.vehicle.fuel.label)
+                    },
+                    modifier = Modifier.clickable { changeCar = true },
+                )
+            }
+            item { OutlinedTextField(name, { name = it }, label = { Text("Name shown in the app") }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
             item { Text("Kilometre source", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp)) }
             val modes = listOf(
                 TrackingMode.AUTO to "Auto: OBD-II adapter when connected, otherwise GPS",
@@ -443,6 +423,7 @@ private fun SettingsScreen(state: AppState, store: Store, onBack: () -> Unit) {
         }
     }
 
+    if (changeCar) CarSetupDialog(state, store, firstRun = false, onDismiss = { changeCar = false; name = store.state.value.vehicle.name })
     if (pickObd) ObdPickerDialog(
         onDismiss = { pickObd = false },
         onPick = { addr, n ->

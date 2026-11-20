@@ -3,7 +3,8 @@
 An offline Android app (with Android Auto) that tells you when your next car service is due.
 
 - **No account, no internet.** Everything is stored in one file on the phone.
-- **Service items by km and/or time**, e.g. engine oil every 15 000 km or 12 months, whichever comes first. Comes with typical defaults you can edit or delete.
+- **Pick your car** (make, model, fuel type). The service list matches the fuel: diesels get fuel filter, glow plugs, DPF and AdBlue instead of spark plugs; electric cars skip oil. About 40 makes and 350 models sold in Europe, or type your own.
+- **Service items by km and/or time**, e.g. engine oil every 15 000 km or 12 months, whichever comes first. Intervals are typical values; adjust them to your service book.
 - **Kilometres from three sources:**
   1. **OBD-II** via a Bluetooth Classic ELM327 adapter. If the car reports its odometer (PID A6, mostly 2019+ cars) the app uses the real value; otherwise it adds up distance from vehicle speed.
   2. **GPS** distance while a trip is running (used automatically when no adapter is connected).
@@ -36,6 +37,10 @@ Bluetooth LE-only adapters (some "iOS compatible" ones) are not supported yet; u
 ## How tracking works
 
 A trip runs as a foreground service with a notification. In **Auto** mode it connects to the OBD adapter if one is chosen and reachable, otherwise it uses GPS and retries the adapter every minute. GPS ignores fixes worse than 25 m and jitter while parked, so expect a small difference from the car's odometer; correct it any time by tapping the odometer.
+
+## Windows / browser version
+
+`web/car-service.html` is the same app for any browser (manual odometer entry only). It is generated from `web/index.template.html` by `python3 tools/catalog.py`, which also generates the Android car list in `CarCatalog.kt`.
 
 ## Build locally
 

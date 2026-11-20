@@ -78,6 +78,7 @@ class Store private constructor(private val file: File) {
         fun toJson(s: AppState): JSONObject = JSONObject().apply {
             put("vehicle", JSONObject().apply {
                 put("name", s.vehicle.name)
+                put("make", s.vehicle.make); put("model", s.vehicle.model); put("fuel", s.vehicle.fuel.name)
                 put("odometerKm", s.vehicle.odometerKm)
                 put("odometerUpdated", s.vehicle.odometerUpdated)
             })
@@ -115,6 +116,9 @@ class Store private constructor(private val file: File) {
             return AppState(
                 vehicle = Vehicle(
                     name = v.optString("name", "My car"),
+                    make = v.optString("make", ""),
+                    model = v.optString("model", ""),
+                    fuel = runCatching { FuelType.valueOf(v.optString("fuel", "PETROL")) }.getOrDefault(FuelType.PETROL),
                     odometerKm = v.optDouble("odometerKm", 0.0),
                     odometerUpdated = v.optLong("odometerUpdated", 0L),
                 ),
