@@ -113,6 +113,10 @@ input.num { width: 9.5em; }
 .welcome { border-color: var(--accent); }
 .car-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; align-items: end; }
 .car-form input, .car-form select, .settings select { width: 100%; }
+.checks { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px 12px; margin: 0; min-width: 0; }
+.checks legend { font-size: 0.8rem; color: var(--muted); font-weight: 500; padding: 0 4px; }
+.check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 4px 12px; }
+.check-grid label { display: flex; gap: 8px; align-items: center; font-size: 0.9rem; cursor: pointer; }
 .fuel-tag { display: inline-block; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); margin-left: 8px; vertical-align: middle; }
 .note { font-size: 0.82rem; color: var(--muted); }
 .save-state { font-size: 0.8rem; color: var(--muted); }
@@ -141,8 +145,13 @@ dialog .btns .left { margin-right: auto; }
     <form id="welcomeForm" class="car-form">
       <label class="field"><span>Make</span><input id="wMake" list="makesList" placeholder="Start typing, e.g. Volkswagen" autocomplete="off" required></label>
       <label class="field"><span>Model</span><input id="wModel" list="wModelsList" placeholder="e.g. Golf" autocomplete="off"></label>
+      <label class="field"><span>Model year</span><input id="wYear" class="num" inputmode="numeric" placeholder="e.g. 2007" maxlength="4" style="width:100%"></label>
       <label class="field"><span>Fuel</span><select id="wFuel"></select></label>
       <label class="field"><span>Odometer (km)</span><input id="welcomeKm" class="num" inputmode="numeric" placeholder="e.g. 84 250" required style="width:100%"></label>
+      <fieldset class="checks" style="grid-column:1/-1">
+        <legend>Service items <span class="note" id="wChecksNote"></span></legend>
+        <div id="wChecks" class="check-grid"></div>
+      </fieldset>
       <button class="primary" type="submit">Start</button>
     </form>
     <datalist id="wModelsList"></datalist>
@@ -189,8 +198,15 @@ dialog .btns .left { margin-right: auto; }
           <label class="field"><span>Model</span><input id="sModel" list="sModelsList" autocomplete="off"></label>
         </div>
         <datalist id="sModelsList"></datalist>
-        <label class="field"><span>Fuel</span><select id="sFuel"></select></label>
-        <p class="note" id="fuelNote" hidden style="margin:0">Saving switches the service list to items for this fuel. Items you added yourself and past service dates are kept.</p>
+        <div class="row2" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <label class="field"><span>Model year</span><input id="sYear" class="num" inputmode="numeric" maxlength="4" style="width:100%"></label>
+          <label class="field"><span>Fuel</span><select id="sFuel"></select></label>
+        </div>
+        <fieldset class="checks">
+          <legend>Service items <span class="note" id="sChecksNote"></span></legend>
+          <div id="sChecks" class="check-grid"></div>
+        </fieldset>
+        <p class="note" style="margin:0">Saving rebuilds the list from these ticks. Past service dates and items you added yourself are kept.</p>
         <div><button type="submit" id="carSave">Save car</button></div>
       </form>
       <label class="field"><span>Name shown in the app</span><input id="setName"></label>
@@ -248,18 +264,32 @@ dialog .btns .left { margin-right: auto; }
 (() => {
   const $ = (id) => document.getElementById(id);
   let carDirty = false;
+  let wUnticked = new Set(), sUnticked = new Set();
+  const yearOf = (v) => { const n = parseInt(String(v).replace(/\D/g, ""), 10); return n >= 1950 && n <= 2100 ? n : null; };
+  function renderChecks(prefix) {
+    const fuel = document.getElementById(prefix + "Fuel").value || "PETROL";
+    const year = yearOf(document.getElementById(prefix + "Year").value);
+    const off = prefix === "w" ? wUnticked : sUnticked;
+    document.getElementById(prefix + "ChecksNote").textContent = year ? "· untick anything your car doesn't have" : "· enter the year to leave out DPF and AdBlue on older cars";
+    document.getElementById(prefix + "Checks").replaceChildren(...templateFor(fuel, year).map((t) => {
+      const box = document.createElement("input");
+      box.type = "checkbox"; box.id = prefix + "chk-" + t.id; box.checked = !off.has(t.id);
+      box.addEventListener("change", () => { box.checked ? off.delete(t.id) : off.add(t.id); if (prefix === "s") carDirty = true; });
+      const lab = document.createElement("label"); lab.append(box, t.name); return lab;
+    }));
+  }
   const todayISO = () => new Date().toISOString().slice(0, 10);
   const uid = () => Math.random().toString(36).slice(2, 10);
 
-  const CATALOG = {"makes": {"Alfa Romeo": ["Giulia", "Giulietta", "Stelvio", "Tonale", "MiTo", "159", "147", "Junior"], "Audi": ["A1", "A3", "A4", "A5", "A6", "A7", "A8", "Q2", "Q3", "Q5", "Q7", "Q8", "Q4 e-tron", "e-tron", "TT"], "BMW": ["1 Series", "2 Series", "3 Series", "4 Series", "5 Series", "7 Series", "X1", "X2", "X3", "X4", "X5", "X6", "i3", "i4", "iX", "iX3"], "BYD": ["Atto 3", "Dolphin", "Seal", "Seal U", "Han", "Tang"], "Chevrolet": ["Aveo", "Cruze", "Spark", "Captiva", "Orlando"], "Citroën": ["C1", "C3", "C3 Aircross", "C4", "C4 Picasso", "C5", "C5 Aircross", "Berlingo", "Jumpy", "Jumper", "ë-C4"], "Cupra": ["Born", "Formentor", "Leon", "Ateca", "Tavascan"], "Dacia": ["Sandero", "Logan", "Duster", "Jogger", "Spring", "Lodgy", "Dokker"], "DS": ["DS 3", "DS 4", "DS 7", "DS 9"], "Fiat": ["500", "500X", "500L", "Panda", "Punto", "Tipo", "Doblò", "Ducato", "Bravo", "600"], "Ford": ["Fiesta", "Focus", "Mondeo", "Puma", "Kuga", "EcoSport", "C-Max", "S-Max", "Galaxy", "Mustang Mach-E", "Ranger", "Transit", "Transit Custom", "Ka"], "Honda": ["Jazz", "Civic", "Civic Tourer", "Accord", "FR-V", "Stream", "Insight", "CR-Z", "HR-V", "CR-V", "ZR-V", "Legend", "e"], "Hyundai": ["i10", "i20", "i30", "i40", "Bayon", "Kona", "Tucson", "Santa Fe", "Ioniq", "Ioniq 5", "Ioniq 6", "ix35"], "Jaguar": ["XE", "XF", "E-Pace", "F-Pace", "I-Pace"], "Jeep": ["Renegade", "Compass", "Avenger", "Cherokee", "Wrangler", "Grand Cherokee"], "Kia": ["Picanto", "Rio", "Ceed", "XCeed", "Stonic", "Niro", "Sportage", "Sorento", "EV6", "EV9", "Soul", "Optima"], "Land Rover": ["Defender", "Discovery", "Discovery Sport", "Range Rover", "Range Rover Evoque", "Range Rover Sport", "Range Rover Velar", "Freelander"], "Lexus": ["CT", "IS", "ES", "NX", "RX", "UX", "LBX"], "Mazda": ["2", "3", "6", "CX-3", "CX-30", "CX-5", "CX-60", "MX-5", "MX-30"], "Mercedes-Benz": ["A-Class", "B-Class", "C-Class", "E-Class", "S-Class", "CLA", "GLA", "GLB", "GLC", "GLE", "EQA", "EQB", "EQC", "EQE", "Vito", "Sprinter"], "MG": ["MG3", "MG4", "MG5", "ZS", "HS", "Marvel R"], "Mini": ["Hatch", "Clubman", "Countryman", "Cabrio", "Electric"], "Mitsubishi": ["Space Star", "Colt", "ASX", "Eclipse Cross", "Outlander", "L200"], "Nissan": ["Micra", "Juke", "Qashqai", "X-Trail", "Leaf", "Ariya", "Note", "Navara"], "Opel / Vauxhall": ["Corsa", "Astra", "Insignia", "Mokka", "Crossland", "Grandland", "Zafira", "Meriva", "Combo", "Vivaro", "Adam", "Karl"], "Peugeot": ["108", "208", "2008", "308", "3008", "408", "508", "5008", "Partner", "Rifter", "Expert", "Boxer", "e-208"], "Polestar": ["2", "3", "4"], "Porsche": ["911", "Cayenne", "Macan", "Panamera", "Taycan"], "Renault": ["Twingo", "Clio", "Captur", "Mégane", "Scénic", "Arkana", "Austral", "Kadjar", "Koleos", "Talisman", "Laguna", "Zoe", "Kangoo", "Trafic", "Master", "Espace"], "Seat": ["Ibiza", "Leon", "Arona", "Ateca", "Tarraco", "Alhambra", "Toledo", "Mii"], "Škoda": ["Citigo", "Fabia", "Scala", "Rapid", "Octavia", "Superb", "Kamiq", "Karoq", "Kodiaq", "Enyaq", "Yeti", "Roomster"], "Smart": ["ForTwo", "ForFour", "#1", "#3"], "SsangYong / KGM": ["Tivoli", "Korando", "Rexton", "Torres"], "Subaru": ["Impreza", "XV / Crosstrek", "Forester", "Outback", "Legacy", "Solterra"], "Suzuki": ["Swift", "Ignis", "Baleno", "Vitara", "S-Cross", "Jimny", "Celerio", "SX4", "Grand Vitara"], "Tesla": ["Model 3", "Model Y", "Model S", "Model X"], "Toyota": ["Aygo", "Aygo X", "Yaris", "Yaris Cross", "Corolla", "Auris", "Avensis", "C-HR", "RAV4", "Prius", "Land Cruiser", "Hilux", "Proace", "bZ4X"], "Volkswagen": ["up!", "Polo", "Golf", "Jetta", "Passat", "Arteon", "T-Cross", "T-Roc", "Taigo", "Tiguan", "Touran", "Touareg", "Sharan", "Caddy", "Transporter", "ID.3", "ID.4", "ID.5", "ID.7", "ID. Buzz"], "Volvo": ["V40", "V60", "V90", "S60", "S90", "XC40", "XC60", "XC90", "EX30", "EX90"]}, "fuels": [["PETROL", "Petrol"], ["DIESEL", "Diesel"], ["HYBRID", "Hybrid (petrol)"], ["PLUGIN_HYBRID", "Plug-in hybrid"], ["ELECTRIC", "Electric"], ["LPG", "Petrol + LPG"]], "templates": {"PETROL": [{"id": "oil", "name": "Engine oil & filter", "km": 15000, "months": 12}, {"id": "air", "name": "Air filter", "km": 30000, "months": 24}, {"id": "cabin", "name": "Cabin (pollen) filter", "km": 15000, "months": 12}, {"id": "plugs", "name": "Spark plugs", "km": 60000, "months": 48}, {"id": "timing", "name": "Timing belt / chain check", "km": 120000, "months": 72}, {"id": "brakes", "name": "Brake pads & discs check", "km": 20000, "months": 12}, {"id": "brakefluid", "name": "Brake fluid", "km": null, "months": 24}, {"id": "coolant", "name": "Coolant", "km": null, "months": 60}, {"id": "inspection", "name": "Technical inspection", "km": null, "months": 12}], "DIESEL": [{"id": "oil", "name": "Engine oil & filter", "km": 15000, "months": 12}, {"id": "fuelfilter", "name": "Diesel fuel filter", "km": 30000, "months": 24}, {"id": "air", "name": "Air filter", "km": 30000, "months": 24}, {"id": "cabin", "name": "Cabin (pollen) filter", "km": 15000, "months": 12}, {"id": "glowplugs", "name": "Glow plugs", "km": 100000, "months": null}, {"id": "dpf", "name": "DPF (particle filter) check", "km": 100000, "months": null}, {"id": "adblue", "name": "AdBlue top-up (if fitted)", "km": 10000, "months": null}, {"id": "timing", "name": "Timing belt / chain check", "km": 120000, "months": 72}, {"id": "brakes", "name": "Brake pads & discs check", "km": 20000, "months": 12}, {"id": "brakefluid", "name": "Brake fluid", "km": null, "months": 24}, {"id": "coolant", "name": "Coolant", "km": null, "months": 60}, {"id": "inspection", "name": "Technical inspection", "km": null, "months": 12}], "HYBRID": [{"id": "oil", "name": "Engine oil & filter", "km": 15000, "months": 12}, {"id": "air", "name": "Air filter", "km": 30000, "months": 24}, {"id": "cabin", "name": "Cabin (pollen) filter", "km": 15000, "months": 12}, {"id": "plugs", "name": "Spark plugs", "km": 60000, "months": 48}, {"id": "hybridcheck", "name": "Hybrid system check", "km": null, "months": 12}, {"id": "brakes", "name": "Brake pads & discs check", "km": 20000, "months": 12}, {"id": "brakefluid", "name": "Brake fluid", "km": null, "months": 24}, {"id": "coolant", "name": "Coolant", "km": null, "months": 60}, {"id": "inspection", "name": "Technical inspection", "km": null, "months": 12}], "PLUGIN_HYBRID": [{"id": "oil", "name": "Engine oil & filter", "km": 15000, "months": 12}, {"id": "air", "name": "Air filter", "km": 30000, "months": 24}, {"id": "cabin", "name": "Cabin (pollen) filter", "km": 15000, "months": 12}, {"id": "plugs", "name": "Spark plugs", "km": 60000, "months": 48}, {"id": "hybridcheck", "name": "Hybrid battery & charging check", "km": null, "months": 12}, {"id": "brakes", "name": "Brake pads & discs check", "km": 20000, "months": 12}, {"id": "brakefluid", "name": "Brake fluid", "km": null, "months": 24}, {"id": "coolant", "name": "Coolant", "km": null, "months": 60}, {"id": "inspection", "name": "Technical inspection", "km": null, "months": 12}], "ELECTRIC": [{"id": "cabin", "name": "Cabin (pollen) filter", "km": 15000, "months": 12}, {"id": "tyres", "name": "Tyre rotation", "km": 10000, "months": 12}, {"id": "brakes", "name": "Brake pads & discs check", "km": 20000, "months": 12}, {"id": "brakefluid", "name": "Brake fluid", "km": null, "months": 24}, {"id": "evcoolant", "name": "Battery coolant", "km": null, "months": 48}, {"id": "battery12v", "name": "12 V battery check", "km": null, "months": 12}, {"id": "evcheck", "name": "High-voltage system check", "km": null, "months": 24}, {"id": "inspection", "name": "Technical inspection", "km": null, "months": 12}], "LPG": [{"id": "oil", "name": "Engine oil & filter", "km": 15000, "months": 12}, {"id": "air", "name": "Air filter", "km": 30000, "months": 24}, {"id": "cabin", "name": "Cabin (pollen) filter", "km": 15000, "months": 12}, {"id": "plugs", "name": "Spark plugs", "km": 60000, "months": 48}, {"id": "lpgfilter", "name": "LPG filters", "km": 15000, "months": 12}, {"id": "lpgcheck", "name": "LPG system inspection", "km": null, "months": 12}, {"id": "timing", "name": "Timing belt / chain check", "km": 120000, "months": 72}, {"id": "brakes", "name": "Brake pads & discs check", "km": 20000, "months": 12}, {"id": "brakefluid", "name": "Brake fluid", "km": null, "months": 24}, {"id": "coolant", "name": "Coolant", "km": null, "months": 60}, {"id": "inspection", "name": "Technical inspection", "km": null, "months": 12}]}};
+  const CATALOG = {"makes": {"Alfa Romeo": ["Giulia", "Giulietta", "Stelvio", "Tonale", "MiTo", "159", "147", "Junior"], "Audi": ["A1", "A3", "A4", "A5", "A6", "A7", "A8", "Q2", "Q3", "Q5", "Q7", "Q8", "Q4 e-tron", "e-tron", "TT"], "BMW": ["1 Series", "2 Series", "3 Series", "4 Series", "5 Series", "7 Series", "X1", "X2", "X3", "X4", "X5", "X6", "i3", "i4", "iX", "iX3"], "BYD": ["Atto 3", "Dolphin", "Seal", "Seal U", "Han", "Tang"], "Chevrolet": ["Aveo", "Cruze", "Spark", "Captiva", "Orlando"], "Citroën": ["C1", "C3", "C3 Aircross", "C4", "C4 Picasso", "C5", "C5 Aircross", "Berlingo", "Jumpy", "Jumper", "ë-C4"], "Cupra": ["Born", "Formentor", "Leon", "Ateca", "Tavascan"], "Dacia": ["Sandero", "Logan", "Duster", "Jogger", "Spring", "Lodgy", "Dokker"], "DS": ["DS 3", "DS 4", "DS 7", "DS 9"], "Fiat": ["500", "500X", "500L", "Panda", "Punto", "Tipo", "Doblò", "Ducato", "Bravo", "600"], "Ford": ["Fiesta", "Focus", "Mondeo", "Puma", "Kuga", "EcoSport", "C-Max", "S-Max", "Galaxy", "Mustang Mach-E", "Ranger", "Transit", "Transit Custom", "Ka"], "Honda": ["Jazz", "Civic", "Civic Tourer", "Accord", "FR-V", "Stream", "Insight", "CR-Z", "HR-V", "CR-V", "ZR-V", "Legend", "e"], "Hyundai": ["i10", "i20", "i30", "i40", "Bayon", "Kona", "Tucson", "Santa Fe", "Ioniq", "Ioniq 5", "Ioniq 6", "ix35"], "Jaguar": ["XE", "XF", "E-Pace", "F-Pace", "I-Pace"], "Jeep": ["Renegade", "Compass", "Avenger", "Cherokee", "Wrangler", "Grand Cherokee"], "Kia": ["Picanto", "Rio", "Ceed", "XCeed", "Stonic", "Niro", "Sportage", "Sorento", "EV6", "EV9", "Soul", "Optima"], "Land Rover": ["Defender", "Discovery", "Discovery Sport", "Range Rover", "Range Rover Evoque", "Range Rover Sport", "Range Rover Velar", "Freelander"], "Lexus": ["CT", "IS", "ES", "NX", "RX", "UX", "LBX"], "Mazda": ["2", "3", "6", "CX-3", "CX-30", "CX-5", "CX-60", "MX-5", "MX-30"], "Mercedes-Benz": ["A-Class", "B-Class", "C-Class", "E-Class", "S-Class", "CLA", "GLA", "GLB", "GLC", "GLE", "EQA", "EQB", "EQC", "EQE", "Vito", "Sprinter"], "MG": ["MG3", "MG4", "MG5", "ZS", "HS", "Marvel R"], "Mini": ["Hatch", "Clubman", "Countryman", "Cabrio", "Electric"], "Mitsubishi": ["Space Star", "Colt", "ASX", "Eclipse Cross", "Outlander", "L200"], "Nissan": ["Micra", "Juke", "Qashqai", "X-Trail", "Leaf", "Ariya", "Note", "Navara"], "Opel / Vauxhall": ["Corsa", "Astra", "Insignia", "Mokka", "Crossland", "Grandland", "Zafira", "Meriva", "Combo", "Vivaro", "Adam", "Karl"], "Peugeot": ["108", "208", "2008", "308", "3008", "408", "508", "5008", "Partner", "Rifter", "Expert", "Boxer", "e-208"], "Polestar": ["2", "3", "4"], "Porsche": ["911", "Cayenne", "Macan", "Panamera", "Taycan"], "Renault": ["Twingo", "Clio", "Captur", "Mégane", "Scénic", "Arkana", "Austral", "Kadjar", "Koleos", "Talisman", "Laguna", "Zoe", "Kangoo", "Trafic", "Master", "Espace"], "Seat": ["Ibiza", "Leon", "Arona", "Ateca", "Tarraco", "Alhambra", "Toledo", "Mii"], "Škoda": ["Citigo", "Fabia", "Scala", "Rapid", "Octavia", "Superb", "Kamiq", "Karoq", "Kodiaq", "Enyaq", "Yeti", "Roomster"], "Smart": ["ForTwo", "ForFour", "#1", "#3"], "SsangYong / KGM": ["Tivoli", "Korando", "Rexton", "Torres"], "Subaru": ["Impreza", "XV / Crosstrek", "Forester", "Outback", "Legacy", "Solterra"], "Suzuki": ["Swift", "Ignis", "Baleno", "Vitara", "S-Cross", "Jimny", "Celerio", "SX4", "Grand Vitara"], "Tesla": ["Model 3", "Model Y", "Model S", "Model X"], "Toyota": ["Aygo", "Aygo X", "Yaris", "Yaris Cross", "Corolla", "Auris", "Avensis", "C-HR", "RAV4", "Prius", "Land Cruiser", "Hilux", "Proace", "bZ4X"], "Volkswagen": ["up!", "Polo", "Golf", "Jetta", "Passat", "Arteon", "T-Cross", "T-Roc", "Taigo", "Tiguan", "Touran", "Touareg", "Sharan", "Caddy", "Transporter", "ID.3", "ID.4", "ID.5", "ID.7", "ID. Buzz"], "Volvo": ["V40", "V60", "V90", "S60", "S90", "XC40", "XC60", "XC90", "EX30", "EX90"]}, "fuels": [["PETROL", "Petrol"], ["DIESEL", "Diesel"], ["HYBRID", "Hybrid (petrol)"], ["PLUGIN_HYBRID", "Plug-in hybrid"], ["ELECTRIC", "Electric"], ["LPG", "Petrol + LPG"]], "templates": {"PETROL": [{"id": "oil", "name": "Engine oil & filter", "km": 15000, "months": 12, "minYear": null}, {"id": "air", "name": "Air filter", "km": 30000, "months": 24, "minYear": null}, {"id": "cabin", "name": "Cabin (pollen) filter", "km": 15000, "months": 12, "minYear": null}, {"id": "plugs", "name": "Spark plugs", "km": 60000, "months": 48, "minYear": null}, {"id": "timing", "name": "Timing belt / chain check", "km": 120000, "months": 72, "minYear": null}, {"id": "brakes", "name": "Brake pads & discs check", "km": 20000, "months": 12, "minYear": null}, {"id": "brakefluid", "name": "Brake fluid", "km": null, "months": 24, "minYear": null}, {"id": "coolant", "name": "Coolant", "km": null, "months": 60, "minYear": null}, {"id": "inspection", "name": "Technical inspection", "km": null, "months": 12, "minYear": null}], "DIESEL": [{"id": "oil", "name": "Engine oil & filter", "km": 15000, "months": 12, "minYear": null}, {"id": "fuelfilter", "name": "Diesel fuel filter", "km": 30000, "months": 24, "minYear": null}, {"id": "air", "name": "Air filter", "km": 30000, "months": 24, "minYear": null}, {"id": "cabin", "name": "Cabin (pollen) filter", "km": 15000, "months": 12, "minYear": null}, {"id": "glowplugs", "name": "Glow plugs", "km": 100000, "months": null, "minYear": null}, {"id": "dpf", "name": "DPF (particle filter) check", "km": 100000, "months": null, "minYear": 2010}, {"id": "adblue", "name": "AdBlue top-up", "km": 10000, "months": null, "minYear": 2016}, {"id": "timing", "name": "Timing belt / chain check", "km": 120000, "months": 72, "minYear": null}, {"id": "brakes", "name": "Brake pads & discs check", "km": 20000, "months": 12, "minYear": null}, {"id": "brakefluid", "name": "Brake fluid", "km": null, "months": 24, "minYear": null}, {"id": "coolant", "name": "Coolant", "km": null, "months": 60, "minYear": null}, {"id": "inspection", "name": "Technical inspection", "km": null, "months": 12, "minYear": null}], "HYBRID": [{"id": "oil", "name": "Engine oil & filter", "km": 15000, "months": 12, "minYear": null}, {"id": "air", "name": "Air filter", "km": 30000, "months": 24, "minYear": null}, {"id": "cabin", "name": "Cabin (pollen) filter", "km": 15000, "months": 12, "minYear": null}, {"id": "plugs", "name": "Spark plugs", "km": 60000, "months": 48, "minYear": null}, {"id": "hybridcheck", "name": "Hybrid system check", "km": null, "months": 12, "minYear": null}, {"id": "brakes", "name": "Brake pads & discs check", "km": 20000, "months": 12, "minYear": null}, {"id": "brakefluid", "name": "Brake fluid", "km": null, "months": 24, "minYear": null}, {"id": "coolant", "name": "Coolant", "km": null, "months": 60, "minYear": null}, {"id": "inspection", "name": "Technical inspection", "km": null, "months": 12, "minYear": null}], "PLUGIN_HYBRID": [{"id": "oil", "name": "Engine oil & filter", "km": 15000, "months": 12, "minYear": null}, {"id": "air", "name": "Air filter", "km": 30000, "months": 24, "minYear": null}, {"id": "cabin", "name": "Cabin (pollen) filter", "km": 15000, "months": 12, "minYear": null}, {"id": "plugs", "name": "Spark plugs", "km": 60000, "months": 48, "minYear": null}, {"id": "hybridcheck", "name": "Hybrid battery & charging check", "km": null, "months": 12, "minYear": null}, {"id": "brakes", "name": "Brake pads & discs check", "km": 20000, "months": 12, "minYear": null}, {"id": "brakefluid", "name": "Brake fluid", "km": null, "months": 24, "minYear": null}, {"id": "coolant", "name": "Coolant", "km": null, "months": 60, "minYear": null}, {"id": "inspection", "name": "Technical inspection", "km": null, "months": 12, "minYear": null}], "ELECTRIC": [{"id": "cabin", "name": "Cabin (pollen) filter", "km": 15000, "months": 12, "minYear": null}, {"id": "tyres", "name": "Tyre rotation", "km": 10000, "months": 12, "minYear": null}, {"id": "brakes", "name": "Brake pads & discs check", "km": 20000, "months": 12, "minYear": null}, {"id": "brakefluid", "name": "Brake fluid", "km": null, "months": 24, "minYear": null}, {"id": "evcoolant", "name": "Battery coolant", "km": null, "months": 48, "minYear": null}, {"id": "battery12v", "name": "12 V battery check", "km": null, "months": 12, "minYear": null}, {"id": "evcheck", "name": "High-voltage system check", "km": null, "months": 24, "minYear": null}, {"id": "inspection", "name": "Technical inspection", "km": null, "months": 12, "minYear": null}], "LPG": [{"id": "oil", "name": "Engine oil & filter", "km": 15000, "months": 12, "minYear": null}, {"id": "air", "name": "Air filter", "km": 30000, "months": 24, "minYear": null}, {"id": "cabin", "name": "Cabin (pollen) filter", "km": 15000, "months": 12, "minYear": null}, {"id": "plugs", "name": "Spark plugs", "km": 60000, "months": 48, "minYear": null}, {"id": "lpgfilter", "name": "LPG filters", "km": 15000, "months": 12, "minYear": null}, {"id": "lpgcheck", "name": "LPG system inspection", "km": null, "months": 12, "minYear": null}, {"id": "timing", "name": "Timing belt / chain check", "km": 120000, "months": 72, "minYear": null}, {"id": "brakes", "name": "Brake pads & discs check", "km": 20000, "months": 12, "minYear": null}, {"id": "brakefluid", "name": "Brake fluid", "km": null, "months": 24, "minYear": null}, {"id": "coolant", "name": "Coolant", "km": null, "months": 60, "minYear": null}, {"id": "inspection", "name": "Technical inspection", "km": null, "months": 12, "minYear": null}]}};
 
   const templateIds = new Set(Object.values(CATALOG.templates).flat().map((t) => t.id));
   const fuelLabel = (f) => (CATALOG.fuels.find(([k]) => k === f) || [f, f])[1];
-  const fromTemplate = (fuel, km, date) => CATALOG.templates[fuel].map((t) =>
-    ({ id: t.id, name: t.name, intervalKm: t.km, intervalMonths: t.months, lastDoneKm: km, lastDoneDate: date }));
-  function retemplate(items, fuel, km, date) {
+  // Template items that fit the model year (DPF from 2010, AdBlue from 2016); all when the year is unknown.
+  const templateFor = (fuel, year) => CATALOG.templates[fuel].filter((t) => !year || !t.minYear || year >= t.minYear);
+  function retemplate(items, chosen, km, date) {
     const old = Object.fromEntries(items.map((i) => [i.id, i]));
-    const fresh = CATALOG.templates[fuel].map((t) => old[t.id]
+    const fresh = chosen.map((t) => old[t.id]
       ? { ...old[t.id], name: t.name, intervalKm: t.km, intervalMonths: t.months }
       : { id: t.id, name: t.name, intervalKm: t.km, intervalMonths: t.months, lastDoneKm: km, lastDoneDate: date });
     return fresh.concat(items.filter((i) => !templateIds.has(i.id)));
@@ -268,8 +298,8 @@ dialog .btns .left { margin-right: auto; }
   // Same defaults as the Android app.
   function defaultState() {
     return {
-      vehicle: { name: "My car", make: "", model: "", fuel: "PETROL", odometerKm: 0, odometerUpdated: 0 },
-      items: fromTemplate("PETROL", 0, todayISO()),
+      vehicle: { name: "My car", make: "", model: "", year: null, fuel: "PETROL", odometerKm: 0, odometerUpdated: 0 },
+      items: retemplate([], templateFor("PETROL", null), 0, todayISO()),
       history: [],
       settings: { warnKm: 1000, warnDays: 30 },
     };
@@ -336,10 +366,16 @@ dialog .btns .left { margin-right: auto; }
 
   function render() {
     $("carName").textContent = state.vehicle.name;
-    $("fuelTag").textContent = fuelLabel(state.vehicle.fuel);
-    for (const [id, v] of [["sMake", state.vehicle.make], ["sModel", state.vehicle.model], ["sFuel", state.vehicle.fuel]]) {
+    $("fuelTag").textContent = [state.vehicle.year, fuelLabel(state.vehicle.fuel)].filter(Boolean).join(" · ");
+    for (const [id, v] of [["sMake", state.vehicle.make], ["sModel", state.vehicle.model], ["sFuel", state.vehicle.fuel], ["sYear", state.vehicle.year || ""]]) {
       if (document.activeElement !== $(id) && !carDirty) $(id).value = v;
     }
+    if (!carDirty) {
+      const have = new Set(state.items.map((i) => i.id));
+      sUnticked = new Set(templateFor(state.vehicle.fuel, state.vehicle.year).map((t) => t.id).filter((id) => !have.has(id)));
+    }
+    renderChecks("s");
+    renderChecks("w");
     $("welcome").hidden = state.vehicle.odometerUpdated !== 0;
 
     const digits = String(Math.floor(state.vehicle.odometerKm)).padStart(6, "0");
@@ -469,28 +505,34 @@ dialog .btns .left { margin-right: auto; }
   $("wMake").addEventListener("input", () => fillModels($("wMake"), "wModelsList"));
   $("sMake").addEventListener("input", () => { fillModels($("sMake"), "sModelsList"); carDirty = true; });
   $("sModel").addEventListener("input", () => { carDirty = true; });
-  $("sFuel").addEventListener("change", () => { carDirty = true; $("fuelNote").hidden = $("sFuel").value === state.vehicle.fuel; });
+  $("sFuel").addEventListener("change", () => { carDirty = true; renderChecks("s"); });
+  $("sYear").addEventListener("input", () => { carDirty = true; renderChecks("s"); });
+  $("wFuel").addEventListener("change", () => renderChecks("w"));
+  $("wYear").addEventListener("input", () => renderChecks("w"));
   const carName = (make, model) => [make, model].filter(Boolean).join(" ") || "My car";
+  render(); // fill the fuel selects and tick boxes now that their options exist
 
   $("welcomeForm").addEventListener("submit", (e) => {
     e.preventDefault();
     const km = parseInt(digitsOnly($("welcomeKm").value), 10);
     if (isNaN(km)) return;
-    const make = $("wMake").value.trim(), model = $("wModel").value.trim(), fuel = $("wFuel").value;
+    const make = $("wMake").value.trim(), model = $("wModel").value.trim(), fuel = $("wFuel").value, year = yearOf($("wYear").value);
+    const chosen = templateFor(fuel, year).filter((t) => !wUnticked.has(t.id));
     commit(() => {
-      Object.assign(state.vehicle, { make, model, fuel, name: carName(make, model), odometerKm: km, odometerUpdated: Date.now() });
-      state.items = fromTemplate(fuel, km, todayISO());
+      Object.assign(state.vehicle, { make, model, fuel, year, name: carName(make, model), odometerKm: km, odometerUpdated: Date.now() });
+      state.items = retemplate([], chosen, km, todayISO());
     });
   });
 
   $("carForm").addEventListener("submit", (e) => {
     e.preventDefault();
-    const make = $("sMake").value.trim(), model = $("sModel").value.trim(), fuel = $("sFuel").value;
+    const make = $("sMake").value.trim(), model = $("sModel").value.trim(), fuel = $("sFuel").value, year = yearOf($("sYear").value);
+    const chosen = templateFor(fuel, year).filter((t) => !sUnticked.has(t.id));
+    carDirty = false;
     commit(() => {
-      if (fuel !== state.vehicle.fuel) state.items = retemplate(state.items, fuel, Math.floor(state.vehicle.odometerKm), todayISO());
-      Object.assign(state.vehicle, { make, model, fuel, name: carName(make, model) });
+      state.items = retemplate(state.items, chosen, Math.floor(state.vehicle.odometerKm), todayISO());
+      Object.assign(state.vehicle, { make, model, fuel, year, name: carName(make, model) });
     });
-    carDirty = false; $("fuelNote").hidden = true;
     $("carSave").textContent = "Saved"; setTimeout(() => { $("carSave").textContent = "Save car"; }, 1500);
   });
 

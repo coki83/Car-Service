@@ -21,7 +21,7 @@ private const val OTHER = "Other (type it)"
 
 /**
  * Pick make, model and fuel type. On first run it also asks for the odometer.
- * Changing the fuel type swaps the service list to that fuel's template.
+ * The service list is built from the fuel type's template, filtered by model year and the user's ticks.
  */
 @Composable
 fun CarSetupDialog(state: AppState, store: Store, firstRun: Boolean, onDismiss: () -> Unit) {
@@ -29,6 +29,13 @@ fun CarSetupDialog(state: AppState, store: Store, firstRun: Boolean, onDismiss: 
     var make by remember { mutableStateOf(v.make) }
     var model by remember { mutableStateOf(v.model) }
     var fuel by remember { mutableStateOf(v.fuel) }
+    var year by remember { mutableStateOf(v.year?.toString() ?: "") }
+    // Template items the user unticked. When editing, items they deleted earlier start unticked.
+    var unticked by remember {
+        mutableStateOf(if (firstRun) emptySet() else CarCatalog.templateFor(v.fuel, v.year).map { it.id }.toSet() - state.items.map { it.id }.toSet())
+    }
+    val yearNum = year.toIntOrNull()?.takeIf { it in 1950..2100 }
+    val candidates = remember(fuel, yearNum) { CarCatalog.templateFor(fuel, yearNum) }
     var odo by remember { mutableStateOf(if (firstRun) "" else v.odometerKm.toInt().toString()) }
     var picking by remember { mutableStateOf<String?>(null) } // "make" | "model"
     var typingMake by remember { mutableStateOf(make.isNotEmpty() && make !in CarCatalog.makes) }
@@ -51,6 +58,10 @@ fun CarSetupDialog(state: AppState, store: Store, firstRun: Boolean, onDismiss: 
                 } else {
                     PickerField("Model", model.ifEmpty { "Choose…" }, enabled = make.isNotEmpty()) { picking = "model" }
                 }
+                OutlinedTextField(
+                    year, { year = it.filter(Char::isDigit).take(4) }, label = { Text("Model year (e.g. 2007)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true,
+                )
                 Text("Fuel", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 4.dp))
                 FuelType.entries.forEach { f ->
                     Row(
@@ -62,11 +73,25 @@ fun CarSetupDialog(state: AppState, store: Store, firstRun: Boolean, onDismiss: 
                         Text(f.label)
                     }
                 }
-                if (!firstRun && fuel != v.fuel) {
-                    Text(
-                        "The service list will switch to ${fuel.label.lowercase()} items. Items you added yourself are kept.",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+                Text("Service items", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 4.dp))
+                Text(
+                    if (yearNum == null) "Enter the year to leave out parts older cars don't have (DPF, AdBlue). Untick anything else your car doesn't have."
+                    else "Untick anything your car doesn't have.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                candidates.forEach { t ->
+                    val on = t.id !in unticked
+                    Row(
+                        Modifier.fillMaxWidth().clickable { unticked = if (on) unticked + t.id else unticked - t.id },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = on, onCheckedChange = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(t.name)
+                    }
+                }
+                if (!firstRun) {
+                    Text("Past service dates and items you added yourself are kept.", style = MaterialTheme.typography.bodySmall)
                 }
                 if (firstRun) {
                     OutlinedTextField(
@@ -86,14 +111,11 @@ fun CarSetupDialog(state: AppState, store: Store, firstRun: Boolean, onDismiss: 
                 store.update { s ->
                     val km = if (firstRun) odo.toInt() else s.vehicle.odometerKm.toInt()
                     val name = listOf(make.trim(), model.trim()).filter { it.isNotEmpty() }.joinToString(" ").ifEmpty { "My car" }
-                    val items = when {
-                        firstRun -> defaultItems(km, today, fuel)
-                        fuel != s.vehicle.fuel -> retemplate(s.items, fuel, km, today)
-                        else -> s.items
-                    }
+                    val chosen = candidates.filter { it.id !in unticked }
+                    val items = retemplate(if (firstRun) emptyList() else s.items, chosen, km, today)
                     s.copy(
                         vehicle = s.vehicle.copy(
-                            name = name, make = make.trim(), model = model.trim(), fuel = fuel,
+                            name = name, make = make.trim(), model = model.trim(), fuel = fuel, year = yearNum,
                             odometerKm = if (firstRun) km.toDouble() else s.vehicle.odometerKm,
                             odometerUpdated = if (firstRun) System.currentTimeMillis() else s.vehicle.odometerUpdated,
                         ),

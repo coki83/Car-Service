@@ -11,7 +11,7 @@ enum class FuelType(val label: String) {
     LPG("Petrol + LPG"),
 }
 
-data class Template(val id: String, val name: String, val km: Int?, val months: Int?)
+data class Template(val id: String, val name: String, val km: Int?, val months: Int?, val minYear: Int? = null)
 
 object CarCatalog {
     val makes: Map<String, List<String>> = linkedMapOf(
@@ -74,8 +74,8 @@ object CarCatalog {
             Template("air", "Air filter", 30_000, 24),
             Template("cabin", "Cabin (pollen) filter", 15_000, 12),
             Template("glowplugs", "Glow plugs", 100_000, null),
-            Template("dpf", "DPF (particle filter) check", 100_000, null),
-            Template("adblue", "AdBlue top-up (if fitted)", 10_000, null),
+            Template("dpf", "DPF (particle filter) check", 100_000, null, minYear = 2010),
+            Template("adblue", "AdBlue top-up", 10_000, null, minYear = 2016),
             Template("timing", "Timing belt / chain check", 120_000, 72),
             Template("brakes", "Brake pads & discs check", 20_000, 12),
             Template("brakefluid", "Brake fluid", null, 24),
@@ -128,4 +128,8 @@ object CarCatalog {
             Template("inspection", "Technical inspection", null, 12),
         )
     }
+
+    /** Template items that fit this car's model year (all of them when the year is unknown). */
+    fun templateFor(fuel: FuelType, year: Int?): List<Template> =
+        template(fuel).filter { t -> year == null || t.minYear == null || year >= t.minYear }
 }

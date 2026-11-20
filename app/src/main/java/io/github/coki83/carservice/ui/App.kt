@@ -368,7 +368,7 @@ private fun SettingsScreen(state: AppState, store: Store, onBack: () -> Unit) {
                 ListItem(
                     headlineContent = { Text("Car") },
                     supportingContent = {
-                        Text(listOf(state.vehicle.make, state.vehicle.model).filter { it.isNotEmpty() }.joinToString(" ").ifEmpty { "Not set" } +
+                        Text(listOf(state.vehicle.make, state.vehicle.model, state.vehicle.year?.toString().orEmpty()).filter { it.isNotEmpty() }.joinToString(" ").ifEmpty { "Not set" } +
                             " · " + state.vehicle.fuel.label)
                     },
                     modifier = Modifier.clickable { changeCar = true },

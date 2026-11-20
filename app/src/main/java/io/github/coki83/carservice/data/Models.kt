@@ -10,6 +10,8 @@ data class Vehicle(
     val make: String = "",
     val model: String = "",
     val fuel: FuelType = FuelType.PETROL,
+    /** Model year, used to leave out parts the car doesn't have (e.g. no DPF before 2010). */
+    val year: Int? = null,
     /** Current odometer in km (decimal so GPS/OBD can add fractions). */
     val odometerKm: Double = 0.0,
     val odometerUpdated: Long = 0L,
@@ -53,18 +55,18 @@ data class AppState(
 )
 
 /** Typical European intervals for the fuel type. The user edits these to match their service book. */
-fun defaultItems(odometerKm: Int, today: LocalDate, fuel: FuelType = FuelType.PETROL): List<ServiceItem> =
-    CarCatalog.template(fuel).map { ServiceItem(it.id, it.name, it.km, it.months, odometerKm, today) }
+fun defaultItems(odometerKm: Int, today: LocalDate, fuel: FuelType = FuelType.PETROL, year: Int? = null): List<ServiceItem> =
+    CarCatalog.templateFor(fuel, year).map { ServiceItem(it.id, it.name, it.km, it.months, odometerKm, today) }
 
 private val templateIds: Set<String> by lazy { FuelType.entries.flatMap { f -> CarCatalog.template(f).map { it.id } }.toSet() }
 
 /**
- * Switch the service list to another fuel type: items from the new template keep their
- * "last done" values if they existed before, items the user added themselves are kept.
+ * Rebuild the service list from the chosen template items: items that existed before keep their
+ * "last done" values, template items not chosen are dropped, items the user added themselves are kept.
  */
-fun retemplate(items: List<ServiceItem>, fuel: FuelType, odometerKm: Int, today: LocalDate): List<ServiceItem> {
+fun retemplate(items: List<ServiceItem>, chosen: List<Template>, odometerKm: Int, today: LocalDate): List<ServiceItem> {
     val old = items.associateBy { it.id }
-    val fromTemplate = CarCatalog.template(fuel).map { t ->
+    val fromTemplate = chosen.map { t ->
         old[t.id]?.copy(name = t.name, intervalKm = t.km, intervalMonths = t.months)
             ?: ServiceItem(t.id, t.name, t.km, t.months, odometerKm, today)
     }

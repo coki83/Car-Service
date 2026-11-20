@@ -2,6 +2,7 @@ package io.github.coki83.carservice
 
 import io.github.coki83.carservice.data.DueCalculator
 import io.github.coki83.carservice.data.DueStatus
+import io.github.coki83.carservice.data.CarCatalog
 import io.github.coki83.carservice.data.FuelType
 import io.github.coki83.carservice.data.ServiceItem
 import io.github.coki83.carservice.data.defaultItems
@@ -64,9 +65,17 @@ class DueCalculatorTest {
         val petrol = defaultItems(50_000, today, FuelType.PETROL)
             .map { if (it.id == "oil") it.copy(lastDoneKm = 48_000) else it } +
             ServiceItem("my", "Wiper blades", null, 12, 50_000, today)
-        val diesel = retemplate(petrol, FuelType.DIESEL, 50_000, today)
+        val diesel = retemplate(petrol, CarCatalog.templateFor(FuelType.DIESEL, null), 50_000, today)
         assertEquals(48_000, diesel.first { it.id == "oil" }.lastDoneKm)
         assertTrue(diesel.any { it.id == "my" })
         assertFalse(diesel.any { it.id == "plugs" })
+    }
+
+    @Test fun olderDieselHasNoDpfOrAdBlue() {
+        val ids = defaultItems(0, today, FuelType.DIESEL, 2007).map { it.id }
+        assertFalse("dpf" in ids || "adblue" in ids)
+        assertTrue("glowplugs" in ids)
+        val newer = defaultItems(0, today, FuelType.DIESEL, 2019).map { it.id }
+        assertTrue("dpf" in newer && "adblue" in newer)
     }
 }

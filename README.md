@@ -3,7 +3,7 @@
 An offline Android app (with Android Auto) that tells you when your next car service is due.
 
 - **No account, no internet.** Everything is stored in one file on the phone.
-- **Pick your car** (make, model, fuel type). The service list matches the fuel: diesels get fuel filter, glow plugs, DPF and AdBlue instead of spark plugs; electric cars skip oil. About 40 makes and 350 models sold in Europe, or type your own.
+- **Pick your car** (make, model, year, fuel type). The service list matches: diesels get fuel filter and glow plugs instead of spark plugs, DPF only from 2010 and AdBlue only from 2016; electric cars skip oil. Untick anything your car does not have. About 40 makes and 350 models sold in Europe, or type your own.
 - **Service items by km and/or time**, e.g. engine oil every 15 000 km or 12 months, whichever comes first. Intervals are typical values; adjust them to your service book.
 - **Kilometres from three sources:**
   1. **OBD-II** via a Bluetooth Classic ELM327 adapter. If the car reports its odometer (PID A6, mostly 2019+ cars) the app uses the real value; otherwise it adds up distance from vehicle speed.
