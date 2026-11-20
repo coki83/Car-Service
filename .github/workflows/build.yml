@@ -24,12 +24,23 @@ jobs:
         run: ./gradlew testDebugUnitTest --stacktrace
       - name: Build APK
         run: ./gradlew assembleRelease --stacktrace
+      - name: Name the APK
+        run: cp app/build/outputs/apk/release/*.apk CarService.apk
       - uses: actions/upload-artifact@v4
         with:
           name: car-service-apk
-          path: app/build/outputs/apk/release/*.apk
-      - name: Attach APK to release
-        if: startsWith(github.ref, 'refs/tags/v')
+          path: CarService.apk
+      # Every build on main becomes a release, so the newest APK is always at
+      # https://github.com/<owner>/<repo>/releases/latest/download/CarService.apk
+      - name: Publish release
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/release/*.apk
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v1.0.{0}', github.run_number) }}
+          name: Car Service ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('1.0.{0}', github.run_number) }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          body: |
+            Download **CarService.apk** below and open it on your phone to install.
+            Changes: ${{ github.event.head_commit.message }}
+          files: CarService.apk

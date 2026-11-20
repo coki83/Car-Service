@@ -14,8 +14,8 @@ An offline Android app (with Android Auto) that tells you when your next car ser
 
 ## Install
 
-1. Open the repository's **Actions** tab, pick the latest green "Build APK" run, and download `car-service-apk`. (Pushing a tag like `v1.0` also attaches the APK to a GitHub Release.)
-2. Unzip, copy the APK to your phone, and install it (allow "Install unknown apps" for your file manager).
+1. On your phone, open **[the latest release](../../releases/latest)** and tap **CarService.apk**. Direct link: `https://github.com/coki83/Car-Service/releases/latest/download/CarService.apk`
+2. Open the downloaded file and install it (allow "Install unknown apps" for your browser). Newer releases install over the old one and keep your data.
 
 ### Android Auto
 
