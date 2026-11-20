@@ -115,8 +115,9 @@ input.num { width: 9.5em; }
 .car-form input, .car-form select, .settings select { width: 100%; }
 .checks { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px 12px; margin: 0; min-width: 0; }
 .checks legend { font-size: 0.8rem; color: var(--muted); font-weight: 500; padding: 0 4px; }
-.check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 4px 12px; }
-.check-grid label { display: flex; gap: 8px; align-items: center; font-size: 0.9rem; cursor: pointer; }
+.check-grid { columns: 3 190px; column-gap: 24px; }
+.check-grid label { display: flex; gap: 8px; align-items: center; font-size: 0.9rem; cursor: pointer; padding: 3px 0; break-inside: avoid; }
+.checks .check-grid input[type="checkbox"] { width: auto; flex: none; margin: 0; padding: 0; }
 .fuel-tag { display: inline-block; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); margin-left: 8px; vertical-align: middle; }
 .note { font-size: 0.82rem; color: var(--muted); }
 .save-state { font-size: 0.8rem; color: var(--muted); }
@@ -206,8 +207,8 @@ dialog .btns .left { margin-right: auto; }
           <legend>Service items <span class="note" id="sChecksNote"></span></legend>
           <div id="sChecks" class="check-grid"></div>
         </fieldset>
-        <p class="note" style="margin:0">Saving rebuilds the list from these ticks. Past service dates and items you added yourself are kept.</p>
-        <div><button type="submit" id="carSave">Save car</button></div>
+        <p class="note" style="margin:0">Changes apply right away. Past service dates and items you added yourself are kept.</p>
+        <p class="save-state" id="carSaved" aria-live="polite" style="margin:0"></p>
       </form>
       <label class="field"><span>Name shown in the app</span><input id="setName"></label>
       <div class="row2" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -274,7 +275,7 @@ dialog .btns .left { margin-right: auto; }
     document.getElementById(prefix + "Checks").replaceChildren(...templateFor(fuel, year).map((t) => {
       const box = document.createElement("input");
       box.type = "checkbox"; box.id = prefix + "chk-" + t.id; box.checked = !off.has(t.id);
-      box.addEventListener("change", () => { box.checked ? off.delete(t.id) : off.add(t.id); if (prefix === "s") carDirty = true; });
+      box.addEventListener("change", () => { box.checked ? off.delete(t.id) : off.add(t.id); if (prefix === "s") applyCar(); });
       const lab = document.createElement("label"); lab.append(box, t.name); return lab;
     }));
   }
@@ -505,8 +506,15 @@ dialog .btns .left { margin-right: auto; }
   $("wMake").addEventListener("input", () => fillModels($("wMake"), "wModelsList"));
   $("sMake").addEventListener("input", () => { fillModels($("sMake"), "sModelsList"); carDirty = true; });
   $("sModel").addEventListener("input", () => { carDirty = true; });
-  $("sFuel").addEventListener("change", () => { carDirty = true; renderChecks("s"); });
-  $("sYear").addEventListener("input", () => { carDirty = true; renderChecks("s"); });
+  $("sMake").addEventListener("change", () => applyCar());
+  $("sModel").addEventListener("change", () => applyCar());
+  // New fuel: start from that fuel's full list, so no petrol items stay on a diesel.
+  $("sFuel").addEventListener("change", () => { sUnticked = new Set(); applyCar(); });
+  $("sYear").addEventListener("input", () => {
+    carDirty = true;
+    const v = $("sYear").value.replace(/\D/g, "");
+    if (v.length === 0 || v.length === 4) applyCar(); else renderChecks("s");
+  });
   $("wFuel").addEventListener("change", () => renderChecks("w"));
   $("wYear").addEventListener("input", () => renderChecks("w"));
   const carName = (make, model) => [make, model].filter(Boolean).join(" ") || "My car";
@@ -524,8 +532,7 @@ dialog .btns .left { margin-right: auto; }
     });
   });
 
-  $("carForm").addEventListener("submit", (e) => {
-    e.preventDefault();
+  function applyCar() {
     const make = $("sMake").value.trim(), model = $("sModel").value.trim(), fuel = $("sFuel").value, year = yearOf($("sYear").value);
     const chosen = templateFor(fuel, year).filter((t) => !sUnticked.has(t.id));
     carDirty = false;
@@ -533,8 +540,9 @@ dialog .btns .left { margin-right: auto; }
       state.items = retemplate(state.items, chosen, Math.floor(state.vehicle.odometerKm), todayISO());
       Object.assign(state.vehicle, { make, model, fuel, year, name: carName(make, model) });
     });
-    $("carSave").textContent = "Saved"; setTimeout(() => { $("carSave").textContent = "Save car"; }, 1500);
-  });
+    $("carSaved").textContent = "Service list updated";
+  }
+  $("carForm").addEventListener("submit", (e) => { e.preventDefault(); applyCar(); });
 
   $("odoForm").addEventListener("submit", (e) => {
     e.preventDefault();
