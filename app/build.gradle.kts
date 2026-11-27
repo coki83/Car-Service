@@ -18,11 +18,23 @@ android {
         versionName = "1.0.$build"
     }
 
+    // One fixed key for every build, so new versions install as updates over old ones.
+    val ksFile = file(System.getenv("SIGNING_KEYSTORE") ?: "release.jks")
+    val ksPassword = System.getenv("SIGNING_PASSWORD")
+    signingConfigs {
+        create("release") {
+            storeFile = ksFile
+            storePassword = ksPassword
+            keyAlias = "carservice"
+            keyPassword = ksPassword
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
-            // Signed with the debug key so the CI-built release APK installs without extra setup.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (ksFile.exists() && ksPassword != null) signingConfigs.getByName("release")
+                else signingConfigs.getByName("debug")
         }
     }
     compileOptions {
