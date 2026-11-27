@@ -23,6 +23,11 @@ jobs:
       - name: Unit tests
         run: ./gradlew testDebugUnitTest --stacktrace
       - name: Build APK
+        env:
+          # The signing key (app/release.jks) is committed on purpose so every build can be
+          # installed as an update over the previous one. This repo is public, so treat any
+          # Car Service APK not downloaded from this repo's Releases as untrusted.
+          SIGNING_PASSWORD: "8hH-0FmhESb44ov86v0m_KKv"
         run: ./gradlew assembleRelease --stacktrace
       - name: Name the APK
         run: cp app/build/outputs/apk/release/*.apk CarService.apk
