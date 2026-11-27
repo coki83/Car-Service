@@ -45,6 +45,12 @@ data class Settings(
     val warnKm: Int = 1000,
     /** Warn this many days before an item is due. */
     val warnDays: Int = 30,
+    /** Start and stop trips by themselves (car Bluetooth / Android Auto / driving detection). */
+    val autoStart: Boolean = true,
+    /** Bluetooth devices (the car's head unit, the OBD adapter) whose connection starts a trip. Address -> name. */
+    val carBluetooth: Map<String, String> = emptyMap(),
+    /** Use the phone's motion sensors to notice when you start and stop driving. */
+    val detectDriving: Boolean = false,
 )
 
 data class AppState(

@@ -47,7 +47,14 @@ class TrackingService : Service() {
 
     enum class Source { NONE, OBD, GPS }
 
-    data class Status(val running: Boolean = false, val source: Source = Source.NONE, val tripKm: Double = 0.0, val message: String = "")
+    data class Status(
+        val running: Boolean = false,
+        val source: Source = Source.NONE,
+        val tripKm: Double = 0.0,
+        val message: String = "",
+        /** Set when the trip started by itself; null when the user pressed Start. */
+        val autoReason: AutoReason? = null,
+    )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var job: Job? = null
@@ -58,6 +65,9 @@ class TrackingService : Service() {
     /** Distance not yet written to the store. */
     private var pendingKm = 0.0
     private var tripKm = 0.0
+    private var autoReason: AutoReason? = null
+    /** Last time the car was seen moving; used to end automatic trips after parking. */
+    @Volatile private var lastMove = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -78,7 +88,13 @@ class TrackingService : Service() {
         }
         if (job == null) {
             tripKm = 0.0
+            lastMove = System.currentTimeMillis()
+            autoReason = intent?.getStringExtra(EXTRA_REASON)?.let { r -> runCatching { AutoReason.valueOf(r) }.getOrNull() }
             job = scope.launch { run() }
+            scope.launch { parkedWatchdog() }
+        } else if (intent?.getStringExtra(EXTRA_REASON) == null) {
+            // The user pressed Start during an automatic trip: keep it running until they stop it.
+            autoReason = null
         }
         return START_STICKY
     }
@@ -97,13 +113,22 @@ class TrackingService : Service() {
             ServiceCompat.startForeground(this, NOTIF_ID, buildNotification("Starting…"), types)
             true
         } catch (e: Exception) {
+            // Started from the background without "Allow all the time" location: Android refuses the
+            // location type. Fall back to OBD-only so a connected adapter still counts kilometres.
+            val btOnly = types and ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION.inv()
+            if (btOnly != 0 && btOnly != types) {
+                try {
+                    ServiceCompat.startForeground(this, NOTIF_ID, buildNotification("Starting…"), btOnly)
+                    return true
+                } catch (_: Exception) { }
+            }
             _status.value = Status(message = "Could not start tracking: ${e.message}")
             false
         }
     }
 
     private suspend fun run() {
-        _status.value = Status(running = true, message = "Starting…")
+        _status.value = Status(running = true, message = "Starting…", autoReason = autoReason)
         while (scope.isActive) {
             val settings = store.state.value.settings
             val wantObd = settings.trackingMode == TrackingMode.OBD ||
@@ -168,6 +193,7 @@ class TrackingService : Service() {
                     failures++
                 } else {
                     failures = 0
+                    if (speed > 2) lastMove = System.currentTimeMillis()
                     if (!odometerSupported) {
                         val hours = (t - lastSample) / 3_600_000.0
                         // Ignore gaps (e.g. adapter stalled) so we don't invent distance.
@@ -239,6 +265,7 @@ class TrackingService : Service() {
     private fun addKm(km: Double) {
         pendingKm += km
         tripKm += km
+        lastMove = System.currentTimeMillis()
         if (pendingKm >= 0.1) flush()
     }
 
@@ -251,7 +278,7 @@ class TrackingService : Service() {
     }
 
     private fun update(source: Source, message: String) {
-        _status.value = Status(true, source, tripKm, message)
+        _status.value = Status(true, source, tripKm, message, autoReason)
         val odo = DueCalculator.formatKm(store.state.value.vehicle.odometerKm.toInt())
         val nm = getSystemService(android.app.NotificationManager::class.java)
         nm.notify(NOTIF_ID, buildNotification("$odo km · trip ${"%.1f".format(tripKm)} km · $message"))
@@ -269,6 +296,19 @@ class TrackingService : Service() {
             .setContentIntent(open)
             .addAction(0, "Stop", stop)
             .build()
+    }
+
+    /** Automatic trips end on their own once the car has been parked for a while. */
+    private suspend fun parkedWatchdog() {
+        while (scope.isActive) {
+            delay(60_000)
+            val reason = autoReason ?: continue
+            val limit = if (reason == AutoReason.CAR) 30 * 60_000L else 10 * 60_000L
+            if (System.currentTimeMillis() - lastMove > limit) {
+                withContext(Dispatchers.Main) { stopTracking() }
+                return
+            }
+        }
     }
 
     private fun stopTracking() {
@@ -294,6 +334,7 @@ class TrackingService : Service() {
 
     companion object {
         const val ACTION_STOP = "stop"
+        private const val EXTRA_REASON = "reason"
         private const val NOTIF_ID = 1
 
         private val _status = MutableStateFlow(Status())
@@ -302,6 +343,10 @@ class TrackingService : Service() {
         fun start(context: Context) {
             ContextCompat.startForegroundService(context, Intent(context, TrackingService::class.java))
         }
+
+        /** Intent for a trip that starts by itself. */
+        fun intent(context: Context, reason: AutoReason): Intent =
+            Intent(context, TrackingService::class.java).putExtra(EXTRA_REASON, reason.name)
 
         fun stop(context: Context) {
             context.startService(Intent(context, TrackingService::class.java).setAction(ACTION_STOP))

@@ -6,9 +6,8 @@ import androidx.car.app.CarAppService
 import androidx.car.app.Screen
 import androidx.car.app.Session
 import androidx.car.app.validation.HostValidator
-import io.github.coki83.carservice.data.Store
-import io.github.coki83.carservice.data.TrackingMode
-import io.github.coki83.carservice.tracking.TrackingService
+import io.github.coki83.carservice.tracking.AutoReason
+import io.github.coki83.carservice.tracking.AutoStart
 
 /** Entry point for Android Auto (and Android Automotive hosts). */
 class ServiceCarAppService : CarAppService() {
@@ -21,11 +20,8 @@ class ServiceCarAppService : CarAppService() {
 
     override fun onCreateSession(): Session = object : Session() {
         override fun onCreateScreen(intent: Intent): Screen {
-            // Opening the app in the car starts a trip automatically, if tracking is enabled.
-            val mode = Store.get(carContext).state.value.settings.trackingMode
-            if (mode != TrackingMode.MANUAL && !TrackingService.status.value.running) {
-                runCatching { TrackingService.start(carContext) }
-            }
+            // Opening the app in the car starts a trip automatically, if automatic trips are on.
+            AutoStart.start(carContext, AutoReason.ANDROID_AUTO)
             return DueScreen(carContext)
         }
     }

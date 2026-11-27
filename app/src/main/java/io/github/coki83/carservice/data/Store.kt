@@ -106,6 +106,8 @@ class Store private constructor(private val file: File) {
                 s.settings.obdAddress?.let { put("obdAddress", it) }
                 s.settings.obdName?.let { put("obdName", it) }
                 put("warnKm", s.settings.warnKm); put("warnDays", s.settings.warnDays)
+                put("autoStart", s.settings.autoStart); put("detectDriving", s.settings.detectDriving)
+                put("carBluetooth", JSONObject().apply { s.settings.carBluetooth.forEach { (k, v) -> put(k, v) } })
             })
         }
 
@@ -146,6 +148,9 @@ class Store private constructor(private val file: File) {
                     obdName = st.optString("obdName").ifEmpty { null },
                     warnKm = st.optInt("warnKm", 1000),
                     warnDays = st.optInt("warnDays", 30),
+                    autoStart = st.optBoolean("autoStart", true),
+                    detectDriving = st.optBoolean("detectDriving", false),
+                    carBluetooth = st.optJSONObject("carBluetooth")?.let { bt -> bt.keys().asSequence().associateWith { bt.optString(it) } } ?: emptyMap(),
                 ),
             )
         }
