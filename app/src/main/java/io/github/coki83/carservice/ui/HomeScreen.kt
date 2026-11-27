@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.coki83.carservice.data.*
@@ -114,19 +115,19 @@ private fun HeroCard(state: AppState, onEditOdo: () -> Unit) {
                     val sub = listOfNotNull(v.year?.toString(), v.fuel.label).joinToString(" · ")
                     Text(sub, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.75f))
                 }
+                FilledIconButton(
+                    onClick = onEditOdo,
+                    colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color.White.copy(alpha = 0.18f), contentColor = Color.White),
+                ) { Icon(Icons.Default.Edit, "Edit odometer") }
             }
             Column {
                 Text("ODOMETER", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
                 Spacer(Modifier.height(6.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OdometerDigits(v.odometerKm.toInt(), Modifier.weight(1f, fill = false))
-                    Spacer(Modifier.width(8.dp))
-                    Text("km", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.weight(1f))
-                    FilledIconButton(
-                        onClick = onEditOdo,
-                        colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color.White.copy(alpha = 0.18f), contentColor = Color.White),
-                    ) { Icon(Icons.Default.Edit, "Edit odometer") }
+                Row(verticalAlignment = Alignment.Bottom) {
+                    OdometerDigits(v.odometerKm.toInt(), Modifier.weight(1f))
+                    Spacer(Modifier.width(10.dp))
+                    Text("km", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(bottom = 6.dp))
                 }
                 Spacer(Modifier.height(6.dp))
                 val updated = if (v.odometerUpdated == 0L) "Not set yet" else
@@ -141,15 +142,17 @@ private fun HeroCard(state: AppState, onEditOdo: () -> Unit) {
 @Composable
 private fun OdometerDigits(km: Int, modifier: Modifier = Modifier) {
     val digits = km.coerceAtLeast(0).toString().padStart(6, '0')
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+    val size = if (digits.length > 6) 26.sp else 30.sp
+    Row(modifier.widthIn(max = 300.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         digits.forEach { c ->
             Box(
-                Modifier.clip(RoundedCornerShape(6.dp))
+                Modifier.weight(1f).clip(RoundedCornerShape(7.dp))
                     .background(Brush.verticalGradient(listOf(Color(0xFF0B1016), Color(0xFF1E2731), Color(0xFF0B1016))))
-                    .padding(horizontal = 5.dp, vertical = 2.dp),
+                    .padding(vertical = 4.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(c.toString(), style = OdometerDigitStyle, fontFamily = FontFamily.Monospace, color = Color.White)
+                Text(c.toString(), style = OdometerDigitStyle, fontSize = size, fontFamily = FontFamily.Monospace,
+                    color = Color.White, maxLines = 1, softWrap = false)
             }
         }
     }
