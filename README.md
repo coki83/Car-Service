@@ -10,7 +10,8 @@ An offline Android app (with Android Auto) that tells you when your next car ser
   2. **GPS** distance while a trip is running (used automatically when no adapter is connected).
   3. **Manual entry**: tap the odometer and type the number from the dashboard at any time.
 - **Reminders**: a daily check notifies you when an item is within 1 000 km or 30 days (configurable) or overdue.
-- **Android Auto**: shows the odometer and the most urgent items, with a Start/Stop trip button. Opening the app in the car starts a trip automatically.
+- **Automatic trips**: a trip starts by itself when the phone connects to your car's Bluetooth (which also happens with Android Auto) or when the phone's motion sensors detect driving, and stops when you disconnect or park. For this to work while the app is closed, allow Location "all the time" and set Battery to "Unrestricted" (Settings → Automatic trips shows what is missing).
+- **Android Auto**: shows the odometer and the most urgent items, with a Start/Stop trip button.
 
 ## Install
 
